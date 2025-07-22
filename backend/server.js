@@ -1,12 +1,13 @@
-// server.js
-import express from 'express';
-import mongoose from 'mongoose';
-import 'dotenv/config';
-
+const express = require('express');
+const mongoose = require('mongoose');
+const dotenv = require('dotenv');
+const cors = require('cors');
+const axios =require('axios')
 // Import Routes
-import authRoutes from './routes/auth.js';
+import authRoutes from './routes/aut.js';
 import webhookRoutes from './routes/webhook.js';
-import meetingRoutes from './routes/meetings.js';
+import meetingRoutes from './routes/meeting.js';
+
 
 const app = express();
 
