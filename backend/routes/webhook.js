@@ -1,53 +1,39 @@
-// routes/webhook.js
+// routes/webhook.js (Debug Version)
 import express from 'express';
-import crypto from 'crypto';
-import Meeting from '../models/Meeting.js';
-import User from '../models/User.js';
-import { verifyZoomWebhook } from '../middleware/verifyZoom.js';
-import { processMeeting } from '../services/meetingProcessor.js';
+import { verifyZoomWebhook } from '../middleware/verifyzoom.js';
+import { joinMeetingAsUser } from '../services/meetingJoiner.js';
+import User from '../models/user.js';
 
 const router = express.Router();
 
 router.post('/', verifyZoomWebhook, async (req, res) => {
-  // Immediately acknowledge receipt to Zoom
   res.status(200).send();
 
-  const { event, payload } = req.body;
-
-  if (event === 'endpoint.url_validation') {
-    console.log("Successfully validated webhook URL with Zoom.");
-    return;
-  }
+  const { event: eventType, payload } = req.body;
   
-  if (event === 'recording.completed') {
-    const { id: meeting_id, topic, host_id } = payload.object;
-    const { recording_files } = payload.object;
+  if (eventType === 'meeting.started') {
+    console.log(`[DEBUG] 'meeting.started' event received. Payload is valid.`);
+    const { id: meetingId, topic, host_id: hostId } = payload.object;
 
-    const user = await User.findOne({ zoomId: host_id });
-    if (!user) {
-      console.warn(`Webhook received for unknown user (Zoom ID: ${host_id})`);
-      return;
-    }
-
-    const audio = recording_files.find(f => f.file_type === 'M4A');
-    if (audio) {
-      try {
-        const newMeeting = await Meeting.create({
-          userId: user._id,
-          meetingId: meeting_id,
-          topic: topic,
-          downloadUrl: `${audio.download_url}?access_token=${user.accessToken}`,
-          status: 'recording_available',
-        });
-
-        console.log(`Meeting ${newMeeting._id} for user ${user.email} saved. Triggering processing.`);
-        
-        // Call the processor to run in the background
-        processMeeting(newMeeting._id);
-
-      } catch (dbError) {
-        console.error("Error creating meeting record:", dbError);
+    console.log(`[DEBUG] Meeting Host ID is: ${hostId}. About to search for this user in the database.`);
+    
+    try {
+      const user = await User.findOne({ zoomId: hostId });
+      
+      if (!user) {
+        console.error(`[DEBUG] FATAL: User search returned null. The host of this meeting has not authenticated with our app. Host Zoom ID: ${hostId}`);
+        return;
       }
+      
+      console.log(`[DEBUG] SUCCESS: Found user record for ${user.email}.`);
+      console.log(`[DEBUG] About to call joinMeetingAsUser function...`);
+      
+      await joinMeetingAsUser(user, meetingId, topic);
+      
+      console.log(`[DEBUG] FINISHED: The joinMeetingAsUser function has completed.`);
+
+    } catch (dbError) {
+      console.error("[DEBUG] A database error occurred during the User.findOne search:", dbError);
     }
   }
 });

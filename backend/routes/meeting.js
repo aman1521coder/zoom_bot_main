@@ -1,6 +1,6 @@
 // routes/meetings.js
 import express from 'express';
-import Meeting from '../models/Meeting.js';
+import Meeting from '../models/meeting.js';
 import { protect } from '../middleware/auth.js';
 
 const router = express.Router();

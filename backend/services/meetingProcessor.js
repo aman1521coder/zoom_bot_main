@@ -3,54 +3,49 @@ import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
 import 'dotenv/config';
-
-import Meeting from '../models/Meeting.js';
+import Meeting from '../models/meeting.js';
 import { analyzeTranscript } from './aiAnalyzer.js';
 
-export async function processMeeting(meetingId) {
-  console.log(`[PROCESSOR] Starting to process meeting ${meetingId}`);
+export async function processTwilioRecording(recordingUrl, zoomMeetingId) {
+  const twilioRecordingId = path.basename(recordingUrl);
+  console.log(`[PROCESSOR] Processing Twilio recording ${twilioRecordingId}`);
 
   try {
-    await Meeting.findByIdAndUpdate(meetingId, { status: 'processing' });
-    const meeting = await Meeting.findById(meetingId);
-    if (!meeting) throw new Error('Meeting not found in database.');
+    const meeting = await Meeting.findOne({ meetingId: zoomMeetingId });
+    if (!meeting) {
+      // If no meeting record exists, create one now.
+      // We may need more info like topic, which we could store in the callToMeetingMap.
+      console.log(`[PROCESSOR] No meeting found for ${zoomMeetingId}, creating a new one.`);
+      const newMeeting = new Meeting({ meetingId: zoomMeetingId, status: 'processing', userId: 'placeholder' /* You might need to add userId to the map */ });
+      await newMeeting.save();
+    } else {
+        await meeting.updateOne({ status: 'processing' });
+    }
 
-    // STEP 1: Download Audio File
-    const response = await axios({
-      url: meeting.downloadUrl,
-      method: 'GET',
-      responseType: 'stream',
-    });
+    const response = await axios({ url: recordingUrl, method: 'GET', responseType: 'stream' });
     const tempDir = path.join(process.cwd(), 'temp');
     await fs.mkdir(tempDir, { recursive: true });
-    const filePath = path.join(tempDir, `${meeting.meetingId}.m4a`);
+    const filePath = path.join(tempDir, `${twilioRecordingId}.mp3`);
     await fs.writeFile(filePath, response.data);
-    console.log(`[PROCESSOR] Downloaded audio for ${meetingId}`);
+    console.log(`[PROCESSOR] Downloaded audio.`);
 
-    // STEP 2: Transcribe Audio (Placeholder)
-    // IMPORTANT: Replace this with a real transcription service for a real app.
-    const transcript = "Speaker A: Welcome everyone. Let's discuss the Q3 project launch. Speaker B: The deadline is tight. We need to finalize the marketing plan. Action item: Sarah to send the final marketing plan by Friday. Speaker A: Agreed. Let's move on.";
-    await Meeting.findByIdAndUpdate(meetingId, { transcript });
-    console.log(`[PROCESSOR] Transcribed audio for ${meetingId}`);
+    const transcript = "Placeholder transcript from the Twilio recording.";
+    console.log(`[PROCESSOR] Transcribed audio.`);
 
-    // STEP 3: Analyze with AI
     const analysis = await analyzeTranscript(transcript);
-    await Meeting.findByIdAndUpdate(meetingId, {
+    console.log(`[PROCESSOR] Analysis complete.`);
+
+    await Meeting.updateOne({ meetingId: zoomMeetingId }, {
+      transcript,
       summary: analysis.summary,
       actionItems: analysis.actionItems,
       status: 'completed'
     });
-    console.log(`[PROCESSOR] Completed analysis for ${meetingId}`);
+    console.log(`[PROCESSOR] Saved analysis to meeting ${zoomMeetingId}.`);
 
-    // STEP 4: Cleanup
     await fs.unlink(filePath);
-    console.log(`[PROCESSOR] Cleaned up temporary file for ${meetingId}`);
-
   } catch (error) {
-    console.error(`[PROCESSOR] Failed to process meeting ${meetingId}:`, error.message);
-    await Meeting.findByIdAndUpdate(meetingId, {
-      status: 'failed',
-      processingError: error.message
-    });
+    console.error(`[PROCESSOR] Failed to process Twilio recording ${twilioRecordingId}:`, error.message);
+    await Meeting.updateOne({ meetingId: zoomMeetingId }, { status: 'failed', processingError: error.message });
   }
 }

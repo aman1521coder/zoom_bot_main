@@ -2,24 +2,23 @@
 import express from 'express';
 import axios from 'axios';
 import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
+import User from '../models/user.js';
 
 const router = express.Router();
 
-const CLIENT_ID = process.env.ZOOM_CLIENT_ID;
-const CLIENT_SECRET = process.env.ZOOM_CLIENT_SECRET;
-const REDIRECT_URI = "http://localhost:5000/api/auth/zoom/callback";
+const CLIENT_ID = process.env.ZOOM_BOT_CLIENT_ID;
+const CLIENT_SECRET = process.env.ZOOM_BOT_CLIENT_SECRET;
+const REDIRECT_URI = `http://localhost:${process.env.PORT || 5000}/api/auth/zoom/callback`;
 
 router.get("/zoom", (req, res) => {
+  // Builds the URL string
   const authUrl = `https://zoom.us/oauth/authorize?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
   res.redirect(authUrl);
 });
 
 router.get("/zoom/callback", async (req, res) => {
   const code = req.query.code;
-  if (!code) {
-    return res.status(400).send("Error: Authorization code not found.");
-  }
+  if (!code) return res.status(400).send("Error: Authorization code not found.");
 
   try {
     const tokenResponse = await axios.post("https://zoom.us/oauth/token", null, {
@@ -39,18 +38,12 @@ router.get("/zoom/callback", async (req, res) => {
       { upsert: true, new: true }
     );
 
-    const appToken = jwt.sign(
-      { userId: user._id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const appToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-    // Redirect to your frontend app with the token (e.g., a React app on port 3000)
-    res.redirect(`http://localhost:3000/dashboard?token=${appToken}`);
-
+    res.status(200).json({ message: "User authentication successful!", token: appToken });
   } catch (error) {
-    console.error("OAuth Error:", error.response ? error.response.data : error.message);
-    res.status(500).send("Authentication with Zoom failed.");
+    console.error("User OAuth Error:", error.response ? error.response.data : error.message);
+    res.status(500).send("User authentication failed.");
   }
 });
 
