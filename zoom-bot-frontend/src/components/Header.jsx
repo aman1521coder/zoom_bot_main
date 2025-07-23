@@ -5,3 +5,4 @@ export default function Header() {
     </header>
   );
 }
+// This component renders a sticky header with a blurred background and a title.
