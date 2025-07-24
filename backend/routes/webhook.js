@@ -1,40 +1,57 @@
-// routes/webhook.js (Debug Version)
+// routes/webhook.js
 import express from 'express';
 import { verifyZoomWebhook } from '../middleware/verifyzoom.js';
-import { joinMeetingAsUser } from '../services/meetingJoiner.js';
+// --- MODIFICATION: We only need launchBot now ---
+import { launchBot } from '../services/sdkBotManager.js';
 import User from '../models/user.js';
 
 const router = express.Router();
+const meetingsJoined = new Set();
 
 router.post('/', verifyZoomWebhook, async (req, res) => {
-  res.status(200).send();
+  res.status(200).send(); // Acknowledge receipt immediately
 
   const { event: eventType, payload } = req.body;
-  
-  if (eventType === 'meeting.started') {
-    console.log(`[DEBUG] 'meeting.started' event received. Payload is valid.`);
-    const { id: meetingId, topic, host_id: hostId } = payload.object;
+  console.log(`[WEBHOOK] Received Zoom event: ${eventType}`);
 
-    console.log(`[DEBUG] Meeting Host ID is: ${hostId}. About to search for this user in the database.`);
-    
+  if (eventType === 'meeting.started') {
+    const { id: meetingId, topic, host_id: hostId, password } = payload.object;
+
+    if (meetingsJoined.has(meetingId)) {
+      console.log(`[WEBHOOK] Bot join already initiated for meeting ${meetingId}. Ignoring.`);
+      return;
+    }
+    meetingsJoined.add(meetingId);
+    setTimeout(() => meetingsJoined.delete(meetingId), 1000 * 60 * 5);
+
     try {
-      const user = await User.findOne({ zoomId: hostId });
-      
-      if (!user) {
-        console.error(`[DEBUG] FATAL: User search returned null. The host of this meeting has not authenticated with our app. Host Zoom ID: ${hostId}`);
+      const meetingHost = await User.findOne({ zoomId: hostId });
+      if (!meetingHost) {
+        console.error(`[WEBHOOK] User not found for Zoom Host ID: ${hostId}. Cannot start bot.`);
         return;
       }
-      
-      console.log(`[DEBUG] SUCCESS: Found user record for ${user.email}.`);
-      console.log(`[DEBUG] About to call joinMeetingAsUser function...`);
-      
-      await joinMeetingAsUser(user, meetingId, topic);
-      
-      console.log(`[DEBUG] FINISHED: The joinMeetingAsUser function has completed.`);
 
-    } catch (dbError) {
-      console.error("[DEBUG] A database error occurred during the User.findOne search:", dbError);
+      console.log(`[WEBHOOK] Starting bot for meeting "${topic}" (${meetingId}).`);
+      await launchBot(meetingId, password || '', meetingHost._id);
+
+    } catch (error) {
+      console.error(`[WEBHOOK] Error in 'meeting.started' handler:`, error);
+      meetingsJoined.delete(meetingId);
     }
+  }
+
+  // --- REMOVED THIS ENTIRE BLOCK ---
+  /*
+  else if (eventType === 'meeting.ended') {
+    const { id: meetingId } = payload.object;
+    console.log(`[WEBHOOK] Meeting ${meetingId} has ended. Triggering bot shutdown.`);
+    // This was causing the race condition by killing the browser prematurely.
+    await stopBot(meetingId); 
+  }
+  */
+  
+  else {
+    console.log(`[WEBHOOK] Ignoring unhandled event type: '${eventType}'.`);
   }
 });
 

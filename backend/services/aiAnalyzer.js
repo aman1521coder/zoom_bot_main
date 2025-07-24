@@ -4,6 +4,34 @@ import 'dotenv/config';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+/**
+ * Transcribes an audio file using OpenAI's Whisper model.
+ * @param {string} audioFilePath - The path to the local audio file.
+ * @returns {Promise<string>} The transcribed text.
+ */
+
+export async function transcribeAudioFile(audioFilePath) {
+  if (!fs.existsSync(audioFilePath)) {
+    throw new Error(`Audio file not found at: ${audioFilePath}`);
+  }
+
+  try {
+    const transcription = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(audioFilePath),
+      model: 'whisper-1', // Powerful and accurate model
+    });
+    return transcription.text;
+  } catch (error) {
+    console.error("Error transcribing audio with OpenAI Whisper:", error);
+    throw new Error("AI transcription failed.");
+  }
+}
+
+/**
+ * Analyzes a transcript to produce a summary and action items.
+ * @param {string} transcript - The meeting transcript text.
+ * @returns {Promise<object>} An object with summary and actionItems.
+ */
 export async function analyzeTranscript(transcript) {
   if (!transcript) {
     return { summary: "No transcript available.", actionItems: [] };

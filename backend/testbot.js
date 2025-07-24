@@ -2,16 +2,23 @@
 import crypto from 'crypto';
 import 'dotenv/config';
 
-// This is the fake data we want to send, pretending to be Zoom.
+// The zoomId of the user you have already authenticated via the browser.
+// This ensures the webhook simulates an event for a "known user".
+const YOUR_AUTHENTICATED_ZOOM_ID = "RyiKrhmbTruCfyFZogKkJg";
+
+// This is the fake webhook data we will send to our server.
 const payload = {
   event: 'meeting.started',
   payload: {
-    account_id: process.env.ZOOM_BOT_ACCOUNT_ID,
+    account_id: 'vrwopGt1SleEq3lY1SVphg', // This value isn't used by our user-based bot.
     object: {
-      id: "98765432101", // A fake meeting ID for our test
-      topic: 'Live Test Meeting via Curl',
+      id: `81271298645`, // A unique fake meeting ID for our test.
+      topic: 'Local Test Meeting via Curl',
       start_time: new Date().toISOString(),
-      host_id: 'someFakeHostId'
+      
+      // *** THIS IS THE FIX ***
+      // Use the variable containing your real zoomId.
+      host_id: YOUR_AUTHENTICATED_ZOOM_ID 
     }
   }
 };
@@ -31,14 +38,13 @@ if (!secret) {
 }
 
 // Create the message string that will be signed.
-// It must be in the format: v0:TIMESTAMP:JSON_BODY
 const message = `v0:${timestamp}:${payloadString}`;
 
 // Create the secure HMAC SHA256 signature.
 const hash = crypto.createHmac('sha256', secret).update(message).digest('hex');
 const signature = `v0=${hash}`;
 
-// Assemble the final, complete curl command with all the required parts.
+// Assemble the final, complete curl command.
 const curlCommand = `
 echo "--- Sending Test Webhook ---"
 curl -X POST http://localhost:5000/api/webhook \\

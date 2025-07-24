@@ -1,51 +1,62 @@
 // services/meetingProcessor.js
-import axios from 'axios';
 import fs from 'fs/promises';
-import path from 'path';
 import 'dotenv/config';
 import Meeting from '../models/meeting.js';
-import { analyzeTranscript } from './aiAnalyzer.js';
+import { transcribeAudioFile, analyzeTranscript } from './aiAnalyzer.js';
 
-export async function processTwilioRecording(recordingUrl, zoomMeetingId) {
-  const twilioRecordingId = path.basename(recordingUrl);
-  console.log(`[PROCESSOR] Processing Twilio recording ${twilioRecordingId}`);
+// Get your app's base URL from environment variables for constructing links
+const APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:5000';
 
+/**
+ * Processes a recorded audio file from a meeting.
+ * @param {object} file - The file object from multer.
+ * @param {string} zoomMeetingId - The ID of the Zoom meeting.
+ * @param {string} userId - The ID of the user who owns the meeting.
+ */
+export async function processRecordingFile(file, zoomMeetingId, userId) {
+  const filePath = file.path; // e.g., 'public/recordings/167...-89....webm'
+  console.log(`[PROCESSOR] Starting to process file ${filePath} for meeting ${zoomMeetingId}`);
+
+  let meeting;
   try {
-    const meeting = await Meeting.findOne({ meetingId: zoomMeetingId });
-    if (!meeting) {
-      // If no meeting record exists, create one now.
-      // We may need more info like topic, which we could store in the callToMeetingMap.
-      console.log(`[PROCESSOR] No meeting found for ${zoomMeetingId}, creating a new one.`);
-      const newMeeting = new Meeting({ meetingId: zoomMeetingId, status: 'processing', userId: 'placeholder' /* You might need to add userId to the map */ });
-      await newMeeting.save();
-    } else {
-        await meeting.updateOne({ status: 'processing' });
-    }
+    // Ensure the meeting record exists
+    meeting = await Meeting.findOneAndUpdate(
+      { meetingId: zoomMeetingId, userId: userId },
+      { $setOnInsert: { meetingId: zoomMeetingId, userId: userId, topic: "Meeting " + zoomMeetingId }, $set: { status: 'processing' } },
+      { upsert: true, new: true }
+    );
 
-    const response = await axios({ url: recordingUrl, method: 'GET', responseType: 'stream' });
-    const tempDir = path.join(process.cwd(), 'temp');
-    await fs.mkdir(tempDir, { recursive: true });
-    const filePath = path.join(tempDir, `${twilioRecordingId}.mp3`);
-    await fs.writeFile(filePath, response.data);
-    console.log(`[PROCESSOR] Downloaded audio.`);
+    // 1. Transcribe the audio file
+    const transcript = await transcribeAudioFile(filePath);
+    await Meeting.updateOne({ _id: meeting._id }, { transcript });
 
-    const transcript = "Placeholder transcript from the Twilio recording.";
-    console.log(`[PROCESSOR] Transcribed audio.`);
-
+    // 2. Analyze the transcript
     const analysis = await analyzeTranscript(transcript);
-    console.log(`[PROCESSOR] Analysis complete.`);
 
-    await Meeting.updateOne({ meetingId: zoomMeetingId }, {
-      transcript,
+    // --- MODIFIED: Construct the local download URL ---
+    // The path needs to be relative to the domain root
+    // e.g., 'public/recordings/file.webm' becomes '/recordings/file.webm'
+    const publicPath = path.relative('public', filePath);
+    const downloadUrl = `${APP_BASE_URL}/${publicPath.replace(/\\/g, '/')}`; // Ensure forward slashes
+
+    // 3. Update the final record in the database
+    await Meeting.updateOne({ _id: meeting._id }, {
       summary: analysis.summary,
       actionItems: analysis.actionItems,
-      status: 'completed'
+      downloadUrl: downloadUrl, // Save the direct URL to the local file
+      status: 'completed',
+      processingError: null
     });
-    console.log(`[PROCESSOR] Saved analysis to meeting ${zoomMeetingId}.`);
+    console.log(`[PROCESSOR] Successfully processed and saved meeting ${zoomMeetingId}.`);
 
-    await fs.unlink(filePath);
   } catch (error) {
-    console.error(`[PROCESSOR] Failed to process Twilio recording ${twilioRecordingId}:`, error.message);
-    await Meeting.updateOne({ meetingId: zoomMeetingId }, { status: 'failed', processingError: error.message });
+    console.error(`[PROCESSOR] Failed to process file for meeting ${zoomMeetingId}:`, error.message);
+    if(meeting) {
+        await Meeting.updateOne({ _id: meeting._id }, { status: 'failed', processingError: error.message });
+    }
+  } finally {
+    // --- REMOVED ---
+    // We are no longer deleting the file, as it is the final stored recording.
+    // await fs.unlink(filePath);
   }
 }
