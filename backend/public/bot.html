@@ -14,16 +14,11 @@
         let retryCount = 0;
         let scriptsLoaded = 0;
 
-        function sendErrorToServer(errorDetails) {
-            console.log("Sending error to server: ", errorDetails);
-            fetch('/api/meetings/report-error', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ error: errorDetails, timestamp: new Date().toISOString() })
-            }).catch(err => {
-                console.error("Failed to send error details to the server:", err);
-            });
-        }
+                 function sendErrorToServer(errorDetails) {
+             console.log("Error details:", errorDetails);
+             // Just log errors for now since the endpoint may not exist
+             // Could be enhanced later to send to a real error reporting endpoint
+         }
 
         // Global error handler
         window.onerror = function (message, source, lineno, colno, error) {
@@ -223,64 +218,72 @@
 
                 document.getElementById('status').textContent = "Initializing Zoom SDK...";
 
-                ZoomMtg.init({
-                    leaveUrl: "about:blank",
-                    isSupportAV: true,
-                    isSupportChat: true,
-                    isSupportQA: true,
-                    isSupportPolling: true,
-                    isSupportBreakout: true,
-                    screenShare: true,
-                    success: (success) => {
-                        console.log("Zoom SDK initialized successfully:", success);
-                        document.getElementById('status').textContent = "Zoom SDK initialized. Joining meeting...";
-                        
-                        // Add a delay before joining
-                        setTimeout(() => {
-                            console.log("Attempting to join meeting with parameters:", {
-                                meetingId,
-                                botName,
-                                sdkKey: sdkKey ? "***provided***" : "missing",
-                                signature: signature ? "***provided***" : "missing",
-                                password: password ? "***provided***" : "empty"
-                            });
-                            
-                            ZoomMtg.join({
-                                meetingNumber: meetingId,
-                                userName: botName,
-                                sdkKey: sdkKey,
-                                signature: signature,
-                                passWord: password,
-                                userEmail: userEmail,
-                                success: (result) => {
-                                    console.log("Joined meeting successfully!", result);
-                                    document.getElementById('status').textContent = "Successfully joined meeting!";
-                                    // Start recording only after a successful join
-                                    startRecording();
-                                },
-                                error: (error) => {
-                                    console.error("Join error:", error);
-                                    document.getElementById('status').textContent = "Join error: " + JSON.stringify(error);
-                                    sendErrorToServer({ error: "Join failed", details: error });
-                                }
-                            });
-                        }, 1000);
-                    },
-                    error: (error) => {
-                        console.error("Init error:", error);
-                        document.getElementById('status').textContent = "Init error: " + JSON.stringify(error);
-                        sendErrorToServer({ error: "Init failed", details: error });
-                    }
-                });
-
-                // Listen for the SDK's 'meeting-status' event
-                // This is how we know the meeting has ended.
-                ZoomMtg.getMeetingStatus().addEventListener('meeting-status', (payload) => {
-                    // Status '2' means the meeting has ended.
-                    if (payload.meetingStatus === 2) {
-                        stopAndUploadRecording();
-                    }
-                });
+                                 ZoomMtg.init({
+                     leaveUrl: "about:blank",
+                     isSupportAV: true,
+                     isSupportChat: true,
+                     isSupportQA: true,
+                     isSupportPolling: true,
+                     isSupportBreakout: true,
+                     screenShare: true,
+                     success: (success) => {
+                         console.log("Zoom SDK initialized successfully:", success);
+                         document.getElementById('status').textContent = "Zoom SDK initialized. Joining meeting...";
+                         
+                         // Add a delay before joining
+                         setTimeout(() => {
+                             console.log("Attempting to join meeting with parameters:", {
+                                 meetingId,
+                                 botName,
+                                 sdkKey: sdkKey ? "***provided***" : "missing",
+                                 signature: signature ? "***provided***" : "missing",
+                                 password: password ? "***provided***" : "empty"
+                             });
+                             
+                                                           console.log("About to call ZoomMtg.join...");
+                              
+                              ZoomMtg.join({
+                                  meetingNumber: meetingId,
+                                  userName: botName,
+                                  sdkKey: sdkKey,
+                                  signature: signature,
+                                  passWord: password,
+                                  userEmail: userEmail,
+                                  success: (result) => {
+                                      console.log("Joined meeting successfully!", result);
+                                      document.getElementById('status').textContent = "Successfully joined meeting!";
+                                      
+                                      // Set up meeting status listener after successful join
+                                      try {
+                                          ZoomMtg.inMeetingServiceListener('onMeetingStatus', (data) => {
+                                              console.log('Meeting status changed:', data);
+                                              if (data.meetingStatus === 'MEETING_STATUS_ENDED') {
+                                                  stopAndUploadRecording();
+                                              }
+                                          });
+                                      } catch (err) {
+                                          console.warn("Could not set up meeting status listener:", err);
+                                      }
+                                      
+                                      // Start recording only after a successful join
+                                      startRecording();
+                                  },
+                                  error: (error) => {
+                                      console.error("Join error:", error);
+                                      document.getElementById('status').textContent = "Join error: " + JSON.stringify(error);
+                                      sendErrorToServer({ error: "Join failed", details: error });
+                                  }
+                              });
+                              
+                              console.log("ZoomMtg.join call completed");
+                         }, 1000);
+                     },
+                     error: (error) => {
+                         console.error("Init error:", error);
+                         document.getElementById('status').textContent = "Init error: " + JSON.stringify(error);
+                         sendErrorToServer({ error: "Init failed", details: error });
+                     }
+                 });
 
             } catch (error) {
                 console.error("Exception during Zoom initialization:", error);
