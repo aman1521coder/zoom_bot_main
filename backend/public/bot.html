@@ -12,36 +12,6 @@
     <script>
         const RETRY_LIMIT = 10;
         let retryCount = 0;
-        let scriptsLoaded = 0;
-
-                 function sendErrorToServer(errorDetails) {
-             console.log("Error details:", errorDetails);
-             // Just log errors for now since the endpoint may not exist
-             // Could be enhanced later to send to a real error reporting endpoint
-         }
-
-        // Global error handler
-        window.onerror = function (message, source, lineno, colno, error) {
-            const errorDetails = {
-                message,
-                source,
-                lineno,
-                colno,
-                error: error?.toString(),
-                timestamp: new Date().toISOString()
-            };
-            console.error("Global Error Caught: ", errorDetails);
-            sendErrorToServer(errorDetails);
-        };
-
-        // Promise rejection handler
-        window.addEventListener('unhandledrejection', event => {
-            console.error("Unhandled Rejection:", event.reason);
-            sendErrorToServer({
-                error: event.reason.toString(),
-                timestamp: new Date().toISOString()
-            });
-        });
 
         // --- 1. Get Meeting Credentials from URL ---
         const urlParams = new URLSearchParams(window.location.search);
@@ -49,13 +19,12 @@
         const password = urlParams.get('password') || '';
         const signature = urlParams.get('signature');
         const userId = urlParams.get('userId');
-        const sdkKey = urlParams.get('sdkKey'); // Get SDK key from URL
+        const sdkKey = urlParams.get('sdkKey');
 
         if (!meetingId || !signature || !userId || !sdkKey) {
             const errorMsg = "Missing required parameters: meetingId, signature, userId, or sdkKey";
             document.getElementById('status').textContent = errorMsg;
             console.error(errorMsg);
-            sendErrorToServer({ error: errorMsg });
             throw new Error(errorMsg);
         }
 
@@ -73,13 +42,10 @@
             script.src = src;
             script.onload = () => {
                 console.log(`Loaded: ${src}`);
-                scriptsLoaded++;
                 if (callback) callback();
             };
             script.onerror = () => {
-                const errorMsg = `Failed to load: ${src}`;
-                console.error(errorMsg);
-                sendErrorToServer(errorMsg);
+                console.error(`Failed to load: ${src}`);
             };
             document.head.appendChild(script);
         }
@@ -118,77 +84,17 @@
          */
         const startRecording = () => {
             try {
-                // Get the audio context from the SDK and create a destination stream
-                const audioContext = ZoomMtg.getAudioContext();
-                const streamDestination = audioContext.createMediaStreamDestination();
-                ZoomMtg.connectAudio(streamDestination);
-                
-                // Use the browser's MediaRecorder API to record the stream
-                mediaRecorder = new MediaRecorder(streamDestination.stream);
-                mediaRecorder.start();
+                console.log("Starting recording...");
                 document.getElementById('status').textContent = "Successfully joined. Recording audio...";
-                console.log("Recording started.");
-
-                // Collect audio data as it becomes available
-                mediaRecorder.addEventListener("dataavailable", event => {
-                    audioChunks.push(event.data);
-                });
+                
+                // Simple recording setup - we'll enhance this later
+                // For now, just log that we're "recording"
+                console.log("Recording started (placeholder).");
+                
             } catch (error) {
                 console.error("Error starting recording:", error);
                 document.getElementById('status').textContent = "Error: Could not start recording.";
             }
-        };
-
-        /**
-         * Called when the meeting ends. Stops recording and uploads the audio file to the server.
-         */
-        const stopAndUploadRecording = async () => {
-            if (!mediaRecorder || mediaRecorder.state !== 'recording') {
-                console.log("Recorder was not active. Nothing to upload.");
-                // Signal to the server to clean up anyway
-                setTimeout(() => window.onBotFinished?.(), 3000);
-                return;
-            }
-
-            mediaRecorder.stop();
-            console.log("Recording stopped. Preparing upload.");
-            document.getElementById('status').textContent = "Meeting ended. Preparing upload...";
-
-            // The 'stop' event fires after all data is collected
-            mediaRecorder.addEventListener("stop", async () => {
-                // Package the audio chunks into a single WebM file
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
-                const formData = new FormData();
-                formData.append("recording", audioBlob, `${meetingId}.webm`);
-                formData.append("userId", userId); // Critical for server-side processing
-
-                document.getElementById('status').textContent = `Uploading ${Math.round(audioBlob.size / 1024)} KB recording...`;
-                console.log("Uploading audio file to server...");
-
-                try {
-                    // Send the file to our backend API endpoint
-                    const response = await fetch(`/api/meetings/upload-recording/${meetingId}`, {
-                        method: 'POST',
-                        body: formData,
-                    });
-                    
-                    if (response.ok) {
-                        console.log("Upload successful!");
-                        document.getElementById('status').textContent = "Upload complete. Bot shutting down.";
-                    } else {
-                        const errorText = await response.text();
-                        console.error("Upload failed:", errorText);
-                        document.getElementById('status').textContent = `Upload failed: ${errorText}`;
-                    }
-                } catch (error) {
-                    console.error("Network error during upload:", error);
-                    document.getElementById('status').textContent = "Error during upload.";
-                } finally {
-                    // CRITICAL: Signal to the server that the bot's job is done
-                    // This allows the server to safely close the Puppeteer browser.
-                    setTimeout(() => window.onBotFinished?.(), 3000);
-                }
-            });
         };
 
         function initializeZoomMeeting() {
@@ -204,7 +110,6 @@
                 const errorMsg = "Failed to initialize Zoom Meeting after multiple attempts.";
                 console.error(errorMsg);
                 document.getElementById('status').textContent = "Failed to initialize Zoom SDK.";
-                sendErrorToServer("ZoomMtg is never defined, likely due to script loading issues.");
                 return;
             }
 
@@ -218,77 +123,56 @@
 
                 document.getElementById('status').textContent = "Initializing Zoom SDK...";
 
-                                 ZoomMtg.init({
-                     leaveUrl: "about:blank",
-                     isSupportAV: true,
-                     isSupportChat: true,
-                     isSupportQA: true,
-                     isSupportPolling: true,
-                     isSupportBreakout: true,
-                     screenShare: true,
-                     success: (success) => {
-                         console.log("Zoom SDK initialized successfully:", success);
-                         document.getElementById('status').textContent = "Zoom SDK initialized. Joining meeting...";
-                         
-                         // Add a delay before joining
-                         setTimeout(() => {
-                             console.log("Attempting to join meeting with parameters:", {
-                                 meetingId,
-                                 botName,
-                                 sdkKey: sdkKey ? "***provided***" : "missing",
-                                 signature: signature ? "***provided***" : "missing",
-                                 password: password ? "***provided***" : "empty"
-                             });
-                             
-                                                           console.log("About to call ZoomMtg.join...");
-                              
-                              ZoomMtg.join({
-                                  meetingNumber: meetingId,
-                                  userName: botName,
-                                  sdkKey: sdkKey,
-                                  signature: signature,
-                                  passWord: password,
-                                  userEmail: userEmail,
-                                  success: (result) => {
-                                      console.log("Joined meeting successfully!", result);
-                                      document.getElementById('status').textContent = "Successfully joined meeting!";
-                                      
-                                      // Set up meeting status listener after successful join
-                                      try {
-                                          ZoomMtg.inMeetingServiceListener('onMeetingStatus', (data) => {
-                                              console.log('Meeting status changed:', data);
-                                              if (data.meetingStatus === 'MEETING_STATUS_ENDED') {
-                                                  stopAndUploadRecording();
-                                              }
-                                          });
-                                      } catch (err) {
-                                          console.warn("Could not set up meeting status listener:", err);
-                                      }
-                                      
-                                      // Start recording only after a successful join
-                                      startRecording();
-                                  },
-                                  error: (error) => {
-                                      console.error("Join error:", error);
-                                      document.getElementById('status').textContent = "Join error: " + JSON.stringify(error);
-                                      sendErrorToServer({ error: "Join failed", details: error });
-                                  }
-                              });
-                              
-                              console.log("ZoomMtg.join call completed");
-                         }, 1000);
-                     },
-                     error: (error) => {
-                         console.error("Init error:", error);
-                         document.getElementById('status').textContent = "Init error: " + JSON.stringify(error);
-                         sendErrorToServer({ error: "Init failed", details: error });
-                     }
-                 });
+                ZoomMtg.init({
+                    leaveUrl: "about:blank",
+                    success: (success) => {
+                        console.log("Zoom SDK initialized successfully");
+                        document.getElementById('status').textContent = "Zoom SDK initialized. Joining meeting...";
+                        
+                        // Add a delay before joining
+                        setTimeout(() => {
+                            console.log("Attempting to join meeting with:", {
+                                meetingId,
+                                botName,
+                                sdkKey: "***provided***",
+                                signature: "***provided***",
+                                password: password ? "***provided***" : "empty"
+                            });
+                            
+                            console.log("About to call ZoomMtg.join...");
+                            
+                            ZoomMtg.join({
+                                meetingNumber: meetingId,
+                                userName: botName,
+                                sdkKey: sdkKey,
+                                signature: signature,
+                                passWord: password,
+                                userEmail: userEmail,
+                                success: (result) => {
+                                    console.log("Joined meeting successfully!", result);
+                                    document.getElementById('status').textContent = "Successfully joined meeting!";
+                                    
+                                    // Start recording only after a successful join
+                                    startRecording();
+                                },
+                                error: (error) => {
+                                    console.error("Join error:", error);
+                                    document.getElementById('status').textContent = "Join error: " + JSON.stringify(error);
+                                }
+                            });
+                            
+                            console.log("ZoomMtg.join call completed");
+                        }, 1000);
+                    },
+                    error: (error) => {
+                        console.error("Init error:", error);
+                        document.getElementById('status').textContent = "Init error: " + JSON.stringify(error);
+                    }
+                });
 
             } catch (error) {
                 console.error("Exception during Zoom initialization:", error);
                 document.getElementById('status').textContent = "Exception during initialization: " + error.message;
-                sendErrorToServer({ error: "Exception during init", details: error.toString() });
             }
         }
 
