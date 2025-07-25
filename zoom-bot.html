@@ -133,7 +133,7 @@
       try {
         ZoomMtg.setZoomJSLib("https://source.zoom.us/2.18.0/lib", "/av");
         ZoomMtg.preLoadWasm();
-        ZoomMtg.prepareJssdk();
+        ZoomMtg.prepareWebSDK();
 
         document.getElementById('status').textContent = "Initializing Zoom SDK...";
 
@@ -149,22 +149,33 @@
             console.log("Zoom SDK initialized successfully:", success);
             document.getElementById('status').textContent = "Zoom SDK initialized. Joining meeting...";
             
-            ZoomMtg.join({
-              meetingNumber: meetingNumber,
-              userName: userName,
-              sdkKey: sdkKey,
-              signature: signature,
-              passWord: password,
-              success: (result) => {
-                console.log("Joined meeting successfully!", result);
-                document.getElementById('status').textContent = "Successfully joined meeting!";
-              },
-              error: (error) => {
-                console.error("Join error:", error);
-                document.getElementById('status').textContent = "Join error: " + JSON.stringify(error);
-                sendErrorToServer({ error: "Join failed", details: error });
-              },
-            });
+            // Add a small delay and explicit join call
+            setTimeout(() => {
+              console.log("Attempting to join meeting with parameters:", {
+                meetingNumber,
+                userName,
+                sdkKey: sdkKey ? "***provided***" : "missing",
+                signature: signature ? "***provided***" : "missing",
+                password: password ? "***provided***" : "empty"
+              });
+              
+              ZoomMtg.join({
+                meetingNumber: meetingNumber,
+                userName: userName,
+                sdkKey: sdkKey,
+                signature: signature,
+                passWord: password,
+                success: (result) => {
+                  console.log("Joined meeting successfully!", result);
+                  document.getElementById('status').textContent = "Successfully joined meeting!";
+                },
+                error: (error) => {
+                  console.error("Join error:", error);
+                  document.getElementById('status').textContent = "Join error: " + JSON.stringify(error);
+                  sendErrorToServer({ error: "Join failed", details: error });
+                },
+              });
+            }, 1000);
           },
           error: (error) => {
             console.error("Init error:", error);
