@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Zoom Bot</title>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:,">
+</head>
+<body>
+  <div id="zmmtg-root"></div>
+  <div id="aria-notify-area"></div>
+  <div id="status">Loading Zoom SDK...</div>
+
+  <script>
+    const RETRY_LIMIT = 10;
+    let retryCount = 0;
+    let scriptsLoaded = 0;
+    const totalScripts = 6;
+
+    function sendErrorToServer(errorDetails) {
+      console.log("Sending error to server: ", errorDetails);
+      fetch('http://localhost:5000/report-error', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: errorDetails, timestamp: new Date().toISOString() })
+      }).catch(err => {
+        console.error("Failed to send error details to the server:", err);
+      });
+    }
+
+    // Global error handler
+    window.onerror = function (message, source, lineno, colno, error) {
+      const errorDetails = {
+        message,
+        source,
+        lineno,
+        colno,
+        error: error?.toString(),
+        timestamp: new Date().toISOString()
+      };
+      console.error("Global Error Caught: ", errorDetails);
+      sendErrorToServer(errorDetails);
+    };
+
+    // Promise rejection handler
+    window.addEventListener('unhandledrejection', event => {
+      console.error("Unhandled Rejection:", event.reason);
+      sendErrorToServer({
+        error: event.reason.toString(),
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // Extract parameters from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const meetingNumber = urlParams.get("meetingId");
+    const password = urlParams.get("password") || "";
+    const signature = urlParams.get("signature");
+    const sdkKey = urlParams.get("sdkKey");
+    const userName = "BotUser";
+
+    if (!meetingNumber || !signature || !sdkKey) {
+      const errorMsg = "Missing required parameters: meetingId, signature, or sdkKey";
+      document.getElementById('status').textContent = errorMsg;
+      console.error(errorMsg);
+      sendErrorToServer({ error: errorMsg });
+      throw new Error(errorMsg);
+    }
+
+    // Function to load scripts dynamically
+    function loadScript(src, callback) {
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = () => {
+        console.log(`Loaded: ${src}`);
+        scriptsLoaded++;
+        if (callback) callback();
+      };
+      script.onerror = () => {
+        const errorMsg = `Failed to load: ${src}`;
+        console.error(errorMsg);
+        sendErrorToServer(errorMsg);
+      };
+      document.head.appendChild(script);
+    }
+
+    // Load all required scripts in order
+    function loadZoomSDK() {
+      document.getElementById('status').textContent = "Loading dependencies...";
+      
+      // Load React first
+      loadScript('https://source.zoom.us/2.18.0/lib/vendor/react.min.js', () => {
+        // Load React DOM
+        loadScript('https://source.zoom.us/2.18.0/lib/vendor/react-dom.min.js', () => {
+          // Load Redux
+          loadScript('https://source.zoom.us/2.18.0/lib/vendor/redux.min.js', () => {
+            // Load Redux Thunk
+            loadScript('https://source.zoom.us/2.18.0/lib/vendor/redux-thunk.min.js', () => {
+              // Load Lodash
+              loadScript('https://source.zoom.us/2.18.0/lib/vendor/lodash.min.js', () => {
+                // Finally load Zoom SDK
+                loadScript('https://source.zoom.us/2.18.0/zoom-meeting-2.18.0.min.js', () => {
+                  console.log("All scripts loaded, initializing Zoom...");
+                  document.getElementById('status').textContent = "Scripts loaded. Initializing Zoom...";
+                  setTimeout(initializeZoomMeeting, 500); // Small delay to ensure everything is ready
+                });
+              });
+            });
+          });
+        });
+      });
+    }
+
+    function initializeZoomMeeting() {
+      if (typeof ZoomMtg === 'undefined' && retryCount < RETRY_LIMIT) {
+        console.error("ZoomMtg is not defined. Retrying initialization... Attempt:", retryCount + 1);
+        document.getElementById('status').textContent = `Retrying initialization... (${retryCount + 1}/${RETRY_LIMIT})`;
+        retryCount++;
+        setTimeout(initializeZoomMeeting, 2000);
+        return;
+      }
+      
+      if (retryCount >= RETRY_LIMIT) {
+        const errorMsg = "Failed to initialize Zoom Meeting after multiple attempts.";
+        console.error(errorMsg);
+        document.getElementById('status').textContent = "Failed to initialize Zoom SDK.";
+        sendErrorToServer("ZoomMtg is never defined, likely due to script loading issues.");
+        return;
+      }
+
+      console.log("ZoomMtg is defined. Proceeding with initialization.");
+      document.getElementById('status').textContent = "Zoom SDK found. Setting up...";
+
+      try {
+        ZoomMtg.setZoomJSLib("https://source.zoom.us/2.18.0/lib", "/av");
+        ZoomMtg.preLoadWasm();
+        ZoomMtg.prepareJssdk();
+
+        document.getElementById('status').textContent = "Initializing Zoom SDK...";
+
+        ZoomMtg.init({
+          leaveUrl: "about:blank",
+          isSupportAV: true,
+          isSupportChat: true,
+          isSupportQA: true,
+          isSupportPolling: true,
+          isSupportBreakout: true,
+          screenShare: true,
+          success: (success) => {
+            console.log("Zoom SDK initialized successfully:", success);
+            document.getElementById('status').textContent = "Zoom SDK initialized. Joining meeting...";
+            
+            ZoomMtg.join({
+              meetingNumber: meetingNumber,
+              userName: userName,
+              sdkKey: sdkKey,
+              signature: signature,
+              passWord: password,
+              success: (result) => {
+                console.log("Joined meeting successfully!", result);
+                document.getElementById('status').textContent = "Successfully joined meeting!";
+              },
+              error: (error) => {
+                console.error("Join error:", error);
+                document.getElementById('status').textContent = "Join error: " + JSON.stringify(error);
+                sendErrorToServer({ error: "Join failed", details: error });
+              },
+            });
+          },
+          error: (error) => {
+            console.error("Init error:", error);
+            document.getElementById('status').textContent = "Init error: " + JSON.stringify(error);
+            sendErrorToServer({ error: "Init failed", details: error });
+          }
+        });
+      } catch (error) {
+        console.error("Exception during Zoom initialization:", error);
+        document.getElementById('status').textContent = "Exception during initialization: " + error.message;
+        sendErrorToServer({ error: "Exception during init", details: error.toString() });
+      }
+    }
+
+    // Start loading process
+    console.log("Starting Zoom SDK loading process...");
+    loadZoomSDK();
+  </script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f5f5f5;
+    }
+    #status {
+      background-color: #e3f2fd;
+      border: 1px solid #2196f3;
+      border-radius: 4px;
+      padding: 10px;
+      margin: 10px 0;
+      font-weight: bold;
+      color: #1976d2;
+    }
+    #zmmtg-root {
+      width: 100%;
+      height: 600px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background-color: white;
+    }
+  </style>
+</body>
+</html>
