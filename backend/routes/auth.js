@@ -13,7 +13,7 @@ const CLIENT_SECRET = process.env.ZOOM_BOT_CLIENT_SECRET;
 const JWT_SECRET = process.env.JWT_SECRET;
 // IMPORTANT: This URI must EXACTLY match the "Redirect URL for OAuth" in your Zoom App Marketplace settings.
 // Mismatches (e.g., http vs https, trailing slashes) are a common cause of errors.
-const REDIRECT_URI = `https://blackkbingo.com/api/auth/zoom/callback`;
+const REDIRECT_URI = process.env.ZOOM_REDIRECT_URI || `https://blackkbingo.com/api/auth/zoom/callback`;
 
 // This check confirms that the variables are available in this module.
 if (!CLIENT_ID || !CLIENT_SECRET || !JWT_SECRET) {
@@ -26,8 +26,11 @@ if (!CLIENT_ID || !CLIENT_SECRET || !JWT_SECRET) {
  * @description Redirects the user to the Zoom authorization page to start the OAuth flow.
  */
 router.get("/zoom", (req, res) => {
+  console.log("ZOOM_REDIRECT_URI env var:", process.env.ZOOM_REDIRECT_URI);
+  console.log("Using REDIRECT_URI:", REDIRECT_URI);
   const authUrl = `https://zoom.us/oauth/authorize?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
   console.log("Redirecting user to Zoom for authorization...");
+  console.log("Auth URL:", authUrl);
   res.redirect(authUrl);
 });
 
@@ -95,13 +98,17 @@ router.get("/zoom/callback", async (req, res) => {
 
     // 5. Create Application-Specific JWT
     const appToken = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '7d' });
-    console.log("Application JWT created. Sending success response.");
+    console.log("Application JWT created. Redirecting to frontend.");
 
-    res.status(200).json({
-      message: "User authentication successful!",
-      token: appToken,
-      user: { id: user._id, email: user.email, firstName: user.firstName }
-    });
+    // Redirect to frontend with token
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const redirectUrl = `${frontendUrl}?token=${appToken}&user=${encodeURIComponent(JSON.stringify({
+      id: user._id, 
+      email: user.email, 
+      firstName: user.firstName 
+    }))}`;
+    
+    res.redirect(redirectUrl);
 
   } catch (error) {
     console.error("\n--- ❌ ZOOM OAUTH ERROR ❌ ---");

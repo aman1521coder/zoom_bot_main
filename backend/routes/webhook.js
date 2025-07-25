@@ -1,36 +1,52 @@
 import express from 'express';
-import axios from 'axios';
 import { verifyZoomWebhook } from '../middleware/verifyzoom.js';
 import User from '../models/user.js';
+import participantBot from '../services/participantBot.js';
 
 const router = express.Router();
 const meetingsJoined = new Set();
-const WORKER_URL = process.env.PUPPETEER_WORKER_URL;
-const WORKER_SECRET = process.env.WORKER_API_SECRET ||  "1234";
 
 router.post('/', verifyZoomWebhook, async (req, res) => {
   res.status(200).send();
   const { event: eventType, payload } = req.body;
   
+  console.log(`[WEBHOOK] Received event: ${eventType}`);
+  
   if (eventType === 'meeting.started') {
     const { id: meetingId, topic, host_id: hostId, password } = payload.object;
-    if (meetingsJoined.has(meetingId)) return;
+    
+    if (meetingsJoined.has(meetingId)) {
+      console.log(`[WEBHOOK] Already joined meeting ${meetingId}`);
+      return;
+    }
+    
     meetingsJoined.add(meetingId);
 
     try {
       const user = await User.findOne({ zoomId: hostId });
       if (user) {
-        console.log(`[WEBHOOK] Signaling Worker on VPS for meeting: ${topic}`);
-        // Make the API call to the Puppeteer worker on the VPS
-        await axios.post(`${WORKER_URL}/launch-bot`, 
-          { meetingId, password: password || '', userId: user._id },
-          { headers: { 'x-api-secret': WORKER_SECRET } }
-        );
-        console.log(`[WEBHOOK] Signal sent to VPS successfully.`);
+        console.log(`[WEBHOOK] Joining meeting: ${topic} (${meetingId})`);
+        await participantBot.joinMeeting(meetingId, user._id, password);
+        console.log(`[WEBHOOK] Successfully joined meeting ${meetingId}`);
+      } else {
+        console.log(`[WEBHOOK] No user found for Zoom ID: ${hostId}`);
+        meetingsJoined.delete(meetingId);
       }
     } catch (error) {
-      console.error(`[WEBHOOK] Error signaling worker:`, error.response?.data || error.message);
+      console.error(`[WEBHOOK] Error joining meeting ${meetingId}:`, error);
       meetingsJoined.delete(meetingId);
+    }
+  }
+  
+  if (eventType === 'meeting.ended') {
+    const { id: meetingId } = payload.object;
+    console.log(`[WEBHOOK] Meeting ended: ${meetingId}`);
+    
+    try {
+      await participantBot.handleMeetingEnded(meetingId);
+      meetingsJoined.delete(meetingId);
+    } catch (error) {
+      console.error(`[WEBHOOK] Error handling meeting end for ${meetingId}:`, error);
     }
   }
 });
