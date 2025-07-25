@@ -37,9 +37,11 @@ export default function BotDashboard({ user, onLogout }) {
   const fetchMeetings = async () => {
     try {
       const data = await api.getMeetings();
-      setMeetings(data);
+      // Ensure data is an array
+      setMeetings(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to fetch meetings:', error);
+      setMeetings([]); // Set empty array on error
     }
   };
 

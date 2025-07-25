@@ -11,7 +11,7 @@ const meetingSchema = new mongoose.Schema({
   topic: String,
   status: {
     type: String,
-    enum: ['recording_available', 'processing', 'completed', 'failed'],
+    enum: ['recording_available', 'processing', 'completed', 'failed', 'joined', 'ended', 'active'],
     default: 'recording_available',
   },
   downloadUrl: String,
@@ -19,6 +19,13 @@ const meetingSchema = new mongoose.Schema({
   summary: { type: String, default: '' },
   actionItems: [String],
   processingError: { type: String, default: null },
+  
+  // Participant bot specific fields
+  meetingDetails: { type: mongoose.Schema.Types.Mixed, default: null },
+  startTime: { type: Date, default: Date.now },
+  endTime: { type: Date, default: null },
+  participantCount: { type: Number, default: 0 },
+  duration: { type: Number, default: 0 }, // in seconds
 }, { timestamps: true });
 
 export default mongoose.model('Meeting', meetingSchema);
