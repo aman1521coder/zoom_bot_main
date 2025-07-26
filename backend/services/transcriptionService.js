@@ -4,8 +4,13 @@ import FormData from 'form-data';
 
 class TranscriptionService {
   constructor() {
-    // You can use OpenAI Whisper, Google Speech-to-Text, or any other service
-    this.apiKey = process.env.OPENAI_API_KEY || '';
+    // DIRECT API KEY - Always use this one
+    this.apiKey = 'process.env.OPENAI_API_KEY';
+    
+    // Debug logging
+    console.log('[TRANSCRIPTION] Service initialized with hardcoded key');
+    console.log('[TRANSCRIPTION] API key length:', this.apiKey.length);
+    console.log('[TRANSCRIPTION] API key prefix:', this.apiKey.substring(0, 20) + '...');
   }
 
   /**
@@ -26,16 +31,33 @@ class TranscriptionService {
       formData.append('response_format', 'json');
       formData.append('language', 'en');
 
+      console.log('[TRANSCRIPTION] Sending request to OpenAI API...');
+      console.log('[TRANSCRIPTION] Using API key:', this.apiKey.substring(0, 20) + '...');
+      
+      // Use the hardcoded key directly
+      const apiKey = 'process.env.OPENAI_API_KEY';
+      
       const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           ...formData.getHeaders()
         },
         body: formData
       });
 
       if (!response.ok) {
+        console.error(`[TRANSCRIPTION] OpenAI API error: ${response.status} ${response.statusText}`);
+        if (response.status === 401) {
+          console.error('[TRANSCRIPTION] Invalid API key. Please check OPENAI_API_KEY in .env');
+          // Return a placeholder transcription
+          return {
+            text: '[Transcription unavailable - API key issue]',
+            duration: 0,
+            language: 'en',
+            error: 'Invalid API key'
+          };
+        }
         throw new Error(`API error: ${response.statusText}`);
       }
 

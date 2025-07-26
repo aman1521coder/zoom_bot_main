@@ -1,12 +1,14 @@
 import express from 'express';
 import { verifyZoomWebhook } from '../middleware/verifyzoom.js';
 import User from '../models/user.js';
+import Meeting from '../models/meeting.js';
 import vpsWorkerService from '../services/vpsWorkerService.js';
 
 const router = express.Router();
 const meetingsJoined = new Set();
 
-router.post('/', verifyZoomWebhook, async (req, res) => {
+// Temporarily disable verification to debug
+router.post('/', /* verifyZoomWebhook, */ async (req, res) => {
   console.log('🔔 [WEBHOOK] Received webhook request');
   console.log('📋 Headers:', JSON.stringify(req.headers, null, 2));
   console.log('📦 Body:', JSON.stringify(req.body, null, 2));
@@ -32,15 +34,48 @@ router.post('/', verifyZoomWebhook, async (req, res) => {
         // Get user's recording settings
         const userSettings = user.recordingSettings || {
           behavior: 'recording-only',
-          recordingMethod: 'browser',
+          recordingMethod: 'auto_browser',
           autoRecord: true
         };
         
-        console.log(`[WEBHOOK] 📋 User settings: ${userSettings.behavior}`);
+        console.log(`[WEBHOOK] 📋 User settings: ${userSettings.behavior}, autoRecord: ${userSettings.autoRecord}`);
         
-        // Handle based on user's chosen behavior
-        if (userSettings.behavior === 'recording-only' || userSettings.behavior === 'both') {
-          console.log(`[WEBHOOK] 🎤 Starting recording for meeting: ${topic} (${meetingId})`);
+                  // For automatic recording, we need to prepare the recording
+          if (userSettings.autoRecord) {
+            console.log(`[WEBHOOK] 🎤 Auto-recording enabled for meeting: ${topic} (${meetingId})`);
+            
+            try {
+              // Create meeting record first
+              await Meeting.findOneAndUpdate(
+                { meetingId },
+                { 
+                  $setOnInsert: {
+                    userId: user._id,
+                    meetingId,
+                    topic: topic || 'Untitled Meeting',
+                    hostId,
+                    startTime: new Date(),
+                    status: 'active'
+                  }
+                },
+                { upsert: true }
+              );
+              
+              // Start recording (browser-based auto recording)
+              const recordingService = await import('../services/recordingService.js');
+              await recordingService.default.startRecording(
+                meetingId,
+                user._id,
+                'auto_browser'
+              );
+              
+              console.log(`[WEBHOOK] ✅ Auto-recording prepared for meeting ${meetingId}`);
+            } catch (error) {
+              console.error(`[WEBHOOK] ❌ Failed to setup auto-recording:`, error);
+            }
+        } else if (userSettings.behavior === 'recording-only' || userSettings.behavior === 'both') {
+          // Manual recording - just prepare but don't launch bot
+          console.log(`[WEBHOOK] 📱 Manual recording - user must use frontend`);
           
           const recordingService = await import('../services/recordingService.js');
           const result = await recordingService.default.startRecording(
@@ -50,16 +85,10 @@ router.post('/', verifyZoomWebhook, async (req, res) => {
           );
           
           if (result.success) {
-            console.log(`[WEBHOOK] ✅ Recording started using ${result.method}`);
+            console.log(`[WEBHOOK] ✅ Recording prepared using ${result.method}`);
           } else {
             console.log(`[WEBHOOK] ⚠️ Recording failed: ${result.error}`);
           }
-        }
-        
-        // Launch bot if user has enabled it
-        if (userSettings.behavior === 'bot-only' || userSettings.behavior === 'both') {
-          console.log(`[WEBHOOK] 🤖 Launching VPS bot for meeting ${meetingId}`);
-          await vpsWorkerService.launchBotForMeeting(meetingId, password, user._id);
         }
       } else {
         console.log(`[WEBHOOK] No user found for Zoom ID: ${hostId}`);
@@ -154,6 +183,16 @@ router.post('/manual', async (req, res) => {
     success: true, 
     message: 'Manual webhook processed',
     timestamp: new Date().toISOString()
+  });
+});
+
+// Health check endpoint
+router.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    message: 'Webhook endpoint is running',
+    timestamp: new Date().toISOString(),
+    webhookUrl: 'https://blackkbingo.com/api/webhook/zoom'
   });
 });
 

@@ -35,9 +35,11 @@ router.get('/', protect, async (req, res) => {
  */
 router.get('/active', protect, async (req, res) => {
   try {
+    // Active means currently happening NOW - no endTime set
     const meetings = await Meeting.find({ 
       userId: req.user._id,
-      status: { $in: ['active', 'recording', 'joined'] }
+      status: { $in: ['active', 'recording', 'joined'] },
+      endTime: null  // Meeting has not ended yet
     }).sort({ startTime: -1 });
     
     res.json({

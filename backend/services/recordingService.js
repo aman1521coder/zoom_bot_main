@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
 import Meeting from '../models/meeting.js';
+import User from '../models/user.js';
 import transcriptionService from './transcriptionService.js';
 
 class RecordingService {
@@ -8,7 +9,9 @@ class RecordingService {
       'cloud': this.useZoomCloudRecording.bind(this),
       'local': this.useLocalRecording.bind(this),
       'browser': this.useBrowserRecording.bind(this),
-      'api': this.useZoomRecordingAPI.bind(this)
+      'api': this.useZoomRecordingAPI.bind(this),
+      'vps_bot': this.useVPSBotRecording.bind(this),
+      'auto_browser': this.useAutoBrowserRecording.bind(this)
     };
   }
 
@@ -19,6 +22,21 @@ class RecordingService {
     console.log(`[RECORDING] Starting recording for meeting ${meetingId} using method: ${method}`);
     
     try {
+      // Create meeting record if it doesn't exist
+      await Meeting.findOneAndUpdate(
+        { meetingId },
+        { 
+          $setOnInsert: {
+            userId,
+            meetingId,
+            status: 'recording',
+            startTime: new Date(),
+            topic: 'Recording Started'
+          }
+        },
+        { upsert: true }
+      );
+
       // Auto-select method based on availability
       if (method === 'auto') {
         method = await this.selectBestMethod(meetingId);
@@ -107,14 +125,24 @@ class RecordingService {
   async useBrowserRecording(meetingId, userId) {
     console.log('[RECORDING] Using Browser-based Recording');
     
+    // Update meeting to indicate browser recording is active
+    await Meeting.findOneAndUpdate(
+      { meetingId },
+      { 
+        recordingMethod: 'browser',
+        status: 'recording',
+        recordingStartTime: new Date()
+      }
+    );
+    
     // This returns instructions for the frontend to start recording
     return {
       recordingType: 'browser',
-      message: 'Browser recording ready',
+      message: 'Browser recording ready - user must click record in frontend',
       instructions: {
         method: 'MediaRecorder',
         mimeType: 'audio/webm',
-        uploadEndpoint: '/api/transcription/upload'
+        uploadEndpoint: 'https://blackkbingo.com/api/transcription/upload'
       }
     };
   }
@@ -153,6 +181,52 @@ class RecordingService {
   }
 
   /**
+   * Method 5: Use VPS Bot Recording (automatic recording via bot)
+   */
+  async useVPSBotRecording(meetingId, userId) {
+    console.log('[RECORDING] Using VPS Bot for automatic recording');
+    
+    // The VPS bot will automatically record when it joins
+    // This method just tracks the recording status
+    return {
+      recordingType: 'vps_bot',
+      message: 'VPS bot will automatically record when it joins the meeting',
+      autoRecord: true
+    };
+  }
+
+  /**
+   * Method 6: Automatic Browser Recording (starts recording immediately)
+   */
+  async useAutoBrowserRecording(meetingId, userId) {
+    console.log('[RECORDING] Using Automatic Browser Recording');
+    
+    // Create a meeting record with recording status
+    await Meeting.findOneAndUpdate(
+      { meetingId },
+      { 
+        recordingMethod: 'auto_browser',
+        status: 'recording',
+        recordingStartTime: new Date(),
+        autoRecording: true
+      },
+      { upsert: true }
+    );
+    
+    // This tells the system that recording should start automatically
+    // The actual recording happens in the user's browser when they join
+    return {
+      recordingType: 'auto_browser',
+      message: 'Recording will start automatically when you join the meeting',
+      instructions: {
+        method: 'AutoMediaRecorder',
+        autoStart: true,
+        uploadEndpoint: 'https://blackkbingo.com/api/transcription/upload'
+      }
+    };
+  }
+
+  /**
    * Stop recording
    */
   async stopRecording(meetingId, method) {
@@ -161,7 +235,15 @@ class RecordingService {
     try {
       const meeting = await Meeting.findOne({ meetingId });
       if (!meeting) {
-        throw new Error('Meeting not found');
+        console.log(`[RECORDING] Meeting ${meetingId} not found, creating placeholder`);
+        // Create a placeholder meeting record
+        await Meeting.create({
+          meetingId,
+          status: 'ended',
+          endTime: new Date(),
+          recordingMethod: 'none'
+        });
+        return { success: true, message: 'Meeting ended (no recording)' };
       }
 
       // Handle different recording methods
@@ -176,14 +258,23 @@ class RecordingService {
       }
 
       // Update meeting status
-      await Meeting.findOneAndUpdate(
+      const updatedMeeting = await Meeting.findOneAndUpdate(
         { meetingId },
         { 
-          status: 'processing',
+          status: 'completed',
+          endTime: new Date(),
           recordingEndTime: new Date()
-        }
+        },
+        { new: true }
       );
 
+      // Calculate duration if we have start time
+      if (updatedMeeting && updatedMeeting.startTime) {
+        const duration = Math.floor((updatedMeeting.endTime - updatedMeeting.startTime) / 1000);
+        await Meeting.updateOne({ meetingId }, { duration });
+      }
+
+      console.log(`[RECORDING] Meeting ${meetingId} marked as completed`);
       return { success: true };
 
     } catch (error) {

@@ -8,13 +8,15 @@ import {
   FileText,
   Play,
   Circle,
+  Eye,
   CheckCircle,
   AlertCircle,
   Loader
 } from 'lucide-react';
 import api from '../services/api.js';
+import TranscriptionModal from './TranscriptionModal.jsx';
 
-export default function MeetingsList({ onMeetingSelect }) {
+export default function MeetingsList({ onMeetingSelect, onActiveMeetingsChange }) {
   const [meetings, setMeetings] = useState({
     active: [],
     scheduled: [],
@@ -22,6 +24,8 @@ export default function MeetingsList({ onMeetingSelect }) {
   });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('active');
+  const [selectedMeeting, setSelectedMeeting] = useState(null);
+  const [showTranscription, setShowTranscription] = useState(false);
 
   useEffect(() => {
     fetchMeetings();
@@ -41,11 +45,18 @@ export default function MeetingsList({ onMeetingSelect }) {
         api.request('/api/meetings?limit=10') // Recent past meetings
       ]);
 
-      setMeetings({
+      const meetingsData = {
         active: activeMeetings?.data || [],
         scheduled: scheduledMeetings?.data || [],
         past: pastMeetings?.data || []
-      });
+      };
+      
+      setMeetings(meetingsData);
+      
+      // Notify parent about active meetings
+      if (onActiveMeetingsChange) {
+        onActiveMeetingsChange(meetingsData.active);
+      }
     } catch (error) {
       console.error('Error fetching meetings:', error);
     } finally {
@@ -195,6 +206,20 @@ export default function MeetingsList({ onMeetingSelect }) {
                 View
               </a>
             )}
+            
+            {meeting.transcription && (
+              <button
+                className="px-3 py-1 bg-purple-100 text-purple-700 text-sm rounded hover:bg-purple-200 flex items-center gap-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedMeeting(meeting);
+                  setShowTranscription(true);
+                }}
+              >
+                <Eye className="h-3 w-3" />
+                Transcript
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -310,6 +335,16 @@ export default function MeetingsList({ onMeetingSelect }) {
           </div>
         )}
       </div>
+      
+      {/* Transcription Modal */}
+      <TranscriptionModal 
+        meeting={selectedMeeting}
+        isOpen={showTranscription}
+        onClose={() => {
+          setShowTranscription(false);
+          setSelectedMeeting(null);
+        }}
+      />
     </div>
   );
 } 

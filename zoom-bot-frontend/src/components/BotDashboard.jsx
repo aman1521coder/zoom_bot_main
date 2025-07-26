@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api.js';
 import RecordingWidget from './RecordingWidget.jsx';
+import AutoRecorder from './AutoRecorder.jsx';
 import RecordingSettings from './RecordingSettings.jsx';
 import MeetingsList from './MeetingsList.jsx';
 
@@ -26,6 +27,7 @@ export default function BotDashboard({ user, onLogout }) {
   const [showSettings, setShowSettings] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState(null);
   const [userSettings, setUserSettings] = useState(null);
+  const [activeMeetings, setActiveMeetings] = useState([]);
   const [botSettings, setBotSettings] = useState({
     autoJoin: true,
     audioEnabled: true,
@@ -120,8 +122,35 @@ export default function BotDashboard({ user, onLogout }) {
           </div>
         )}
 
-        {/* Recording Widget - PRIMARY FEATURE */}
-        {!showSettings && (
+        {/* Auto Recording for Active Meetings */}
+        {!showSettings && activeMeetings.length > 0 && (
+          <div className="mb-8">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+              <h3 className="font-semibold text-yellow-900 mb-2">Active Meeting Recording</h3>
+              <p className="text-sm text-yellow-700 mb-3">
+                You have {activeMeetings.length} active meeting{activeMeetings.length > 1 ? 's' : ''}. 
+                Recording will start automatically.
+              </p>
+              {activeMeetings.map(meeting => (
+                <AutoRecorder 
+                  key={meeting.meetingId}
+                  meetingId={meeting.meetingId}
+                  onRecordingComplete={(result) => {
+                    console.log('Auto recording complete:', result);
+                    // Refresh meetings list to show transcription
+                    setTimeout(() => {
+                      // This will trigger a refresh through MeetingsList
+                      setActiveMeetings(prev => prev.filter(m => m.meetingId !== meeting.meetingId));
+                    }, 2000);
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Manual Recording Widget */}
+        {!showSettings && activeMeetings.length === 0 && (
           <div className="mb-8">
             <RecordingWidget 
               meetingId={selectedMeeting?.meetingId}
@@ -238,6 +267,10 @@ export default function BotDashboard({ user, onLogout }) {
           onMeetingSelect={(meeting) => {
             setSelectedMeeting(meeting);
             console.log('Selected meeting:', meeting);
+          }}
+          onActiveMeetingsChange={(meetings) => {
+            setActiveMeetings(meetings);
+            console.log('Active meetings:', meetings);
           }}
         />
       </div>

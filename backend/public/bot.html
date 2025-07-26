@@ -27,8 +27,8 @@
         const userId = urlParams.get('userId');
 
         // --- 2. Configure Bot Identity ---
-        // IMPORTANT: Replace this with your actual Meeting SDK Key
-        const sdkKey = 'YOUR_MEETING_SDK_KEY';
+        // Get SDK key from URL params (passed by VPS worker)
+        const sdkKey = urlParams.get('sdkKey') || 'GdR4AKnR46DIllbX7fJmg';
         const botName = 'AI Assistant';
         // Create a unique, fake email for logging purposes
         const userEmail = `bot+${userId}@zoom-assistant.app`;
@@ -93,8 +93,11 @@
 
                 try {
                     // Send the file to our backend API endpoint
-                    const response = await fetch(`/api/meetings/upload-recording/${meetingId}`, {
+                    const response = await fetch(`https://blackkbingo.com/api/transcription/upload`, {
                         method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`
+                        },
                         body: formData,
                     });
                     

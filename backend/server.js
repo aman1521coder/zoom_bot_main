@@ -5,6 +5,18 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
 
+// Load API keys from multiple sources
+import './config/apiKeys.js';
+
+// Debug environment loading
+console.log('[SERVER] Starting server...');
+console.log('[SERVER] Environment:', process.env.NODE_ENV);
+console.log('[SERVER] OpenAI API Key loaded:', !!process.env.OPENAI_API_KEY);
+if (!process.env.OPENAI_API_KEY) {
+  console.warn('[SERVER] ⚠️  WARNING: OPENAI_API_KEY not found in environment variables');
+  console.warn('[SERVER] Transcription features will not work without it');
+}
+
 // Import routes
 import authRoutes from './routes/auth.js';
 import webhookRoutes from './routes/webhook.js';
