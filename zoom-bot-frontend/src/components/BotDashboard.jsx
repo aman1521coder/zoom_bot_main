@@ -16,34 +16,22 @@ import {
   Shield
 } from 'lucide-react';
 import api from '../services/api.js';
+import RecordingWidget from './RecordingWidget.jsx';
+import RecordingSettings from './RecordingSettings.jsx';
+import MeetingsList from './MeetingsList.jsx';
 
 export default function BotDashboard({ user, onLogout }) {
   const [botStatus, setBotStatus] = useState('idle'); // idle, active, error
-  const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [selectedMeeting, setSelectedMeeting] = useState(null);
+  const [userSettings, setUserSettings] = useState(null);
   const [botSettings, setBotSettings] = useState({
     autoJoin: true,
     audioEnabled: true,
     videoEnabled: false,
     chatEnabled: true
   });
-
-  useEffect(() => {
-    fetchMeetings();
-    const interval = setInterval(fetchMeetings, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchMeetings = async () => {
-    try {
-      const data = await api.getMeetings();
-      // Ensure data is an array
-      setMeetings(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Failed to fetch meetings:', error);
-      setMeetings([]); // Set empty array on error
-    }
-  };
 
   const startBot = async () => {
     setLoading(true);
@@ -100,6 +88,13 @@ export default function BotDashboard({ user, onLogout }) {
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600">Welcome, {user?.name || user?.email}</span>
               <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
+              >
+                <Settings className="h-4 w-4" />
+                <span>Settings</span>
+              </button>
+              <button
                 onClick={onLogout}
                 className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
               >
@@ -112,6 +107,32 @@ export default function BotDashboard({ user, onLogout }) {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Settings Panel */}
+        {showSettings && (
+          <div className="mb-8">
+            <RecordingSettings 
+              user={user}
+              onSettingsUpdate={(settings) => {
+                setUserSettings(settings);
+                console.log('Settings updated:', settings);
+              }}
+            />
+          </div>
+        )}
+
+        {/* Recording Widget - PRIMARY FEATURE */}
+        {!showSettings && (
+          <div className="mb-8">
+            <RecordingWidget 
+              meetingId={selectedMeeting?.meetingId}
+              onRecordingComplete={(result) => {
+                console.log('Recording complete:', result);
+                // Refresh will happen automatically via MeetingsList
+              }}
+            />
+          </div>
+        )}
+
         {/* Bot Status */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
@@ -212,66 +233,13 @@ export default function BotDashboard({ user, onLogout }) {
           </div>
         </div>
 
-        {/* Meetings List */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Recent Meetings</h2>
-          </div>
-          <div className="divide-y divide-gray-200">
-            {meetings.length === 0 ? (
-              <div className="px-6 py-8 text-center text-gray-500">
-                <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p>No meetings recorded yet</p>
-                <p className="text-sm">Start the bot to begin recording meetings</p>
-              </div>
-            ) : (
-              meetings.map((meeting) => (
-                <div key={meeting._id} className="px-6 py-4 hover:bg-gray-50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-sm font-medium text-gray-900">{meeting.topic || 'Untitled Meeting'}</h3>
-                      <div className="flex items-center space-x-4 mt-1 text-sm text-gray-500">
-                        <span className="flex items-center">
-                          <Clock className="h-4 w-4 mr-1" />
-                          {new Date(meeting.createdAt).toLocaleDateString()}
-                        </span>
-                        <span className="flex items-center">
-                          <Users className="h-4 w-4 mr-1" />
-                          {meeting.participantCount || 0} participants
-                        </span>
-                        {meeting.duration && (
-                          <span>{Math.round(meeting.duration / 60)} minutes</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      {meeting.recordingUrl && (
-                        <a
-                          href={meeting.recordingUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 text-sm"
-                        >
-                          View Recording
-                        </a>
-                      )}
-                      {meeting.transcriptUrl && (
-                        <a
-                          href={meeting.transcriptUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-green-600 hover:text-green-800 text-sm"
-                        >
-                          View Transcript
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+        {/* Meetings List with Tabs */}
+        <MeetingsList 
+          onMeetingSelect={(meeting) => {
+            setSelectedMeeting(meeting);
+            console.log('Selected meeting:', meeting);
+          }}
+        />
       </div>
     </div>
   );

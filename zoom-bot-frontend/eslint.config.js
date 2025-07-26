@@ -1,7 +1,7 @@
 module.exports = {
   root: true,
   env: { browser: true, es2020: true },
-  extends: [
+    extends: [
     'eslint:recommended',
     '@eslint/js',
     'plugin:react-hooks/recommended',
@@ -10,10 +10,10 @@ module.exports = {
   parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
   settings: { react: { version: '18.2' } },
   plugins: ['react-refresh'],
-  rules: {
+    rules: {
     'react-refresh/only-export-components': [
       'warn',
       { allowConstantExport: true },
     ],
-  },
+    },
 }

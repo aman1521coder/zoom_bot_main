@@ -10,6 +10,12 @@ import authRoutes from './routes/auth.js';
 import webhookRoutes from './routes/webhook.js';
 import meetingRoutes from './routes/meeting.js';
 import botRoutes from './routes/bot.js';
+import recorderRoutes from './routes/recorder.js';
+import alternativeRecorderRoutes from './routes/alternativeRecorder.js';
+import transcriptionRoutes from './routes/transcription.js';
+import recordingRoutes from './routes/recording.js';
+import userRoutes from './routes/user.js';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,6 +45,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/webhook/zoom', webhookRoutes);
 app.use('/api/meetings', meetingRoutes);
 app.use('/api/bot', botRoutes);
+app.use('/api/recorder', recorderRoutes);
+app.use('/api/alternative-recorder', alternativeRecorderRoutes);
+app.use('/api/transcription', transcriptionRoutes);
+app.use('/api/recording', recordingRoutes);
+app.use('/api/user', userRoutes);
+
 
 // Health check endpoint
 app.get('/health', (req, res) => {

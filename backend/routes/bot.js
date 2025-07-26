@@ -1,6 +1,9 @@
 import express from 'express';
 import { protect } from '../middleware/auth.js';
 import participantBot from '../services/participantBot.js';
+import User from '../models/user.js';
+import fs from 'fs';
+import path from 'path';
 
 const router = express.Router();
 
@@ -147,6 +150,136 @@ router.get('/meeting/:meetingId', protect, async (req, res) => {
       success: false,
       message: 'Error getting meeting info'
     });
+  }
+});
+
+// Recording control endpoints
+router.post('/recording/:meetingId/start', protect, async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const user = await User.findById(req.user.id);
+    
+    if (!user || !user.accessToken) {
+      return res.status(401).json({ success: false, message: 'No access token available' });
+    }
+    
+    await participantBot.startRecording(meetingId, user.accessToken);
+    res.json({ success: true, message: 'Recording started successfully' });
+  } catch (error) {
+    console.error('Error starting recording:', error);
+    res.status(500).json({ success: false, message: 'Failed to start recording' });
+  }
+});
+
+router.post('/recording/:meetingId/stop', protect, async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const user = await User.findById(req.user.id);
+    
+    if (!user || !user.accessToken) {
+      return res.status(401).json({ success: false, message: 'No access token available' });
+    }
+    
+    await participantBot.stopRecording(meetingId, user.accessToken);
+    res.json({ success: true, message: 'Recording stopped successfully' });
+  } catch (error) {
+    console.error('Error stopping recording:', error);
+    res.status(500).json({ success: false, message: 'Failed to stop recording' });
+  }
+});
+
+router.get('/recording/:meetingId', protect, async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const user = await User.findById(req.user.id);
+    
+    if (!user || !user.accessToken) {
+      return res.status(401).json({ success: false, message: 'No access token available' });
+    }
+    
+    const recordings = await participantBot.getRecordings(meetingId, user.accessToken);
+    res.json({ success: true, recordings });
+  } catch (error) {
+    console.error('Error getting recordings:', error);
+    res.status(500).json({ success: false, message: 'Failed to get recordings' });
+  }
+});
+
+router.post('/transcript/:meetingId/download', protect, async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const user = await User.findById(req.user.id);
+    
+    if (!user || !user.accessToken) {
+      return res.status(401).json({ success: false, message: 'No access token available' });
+    }
+    
+    const transcript = await participantBot.downloadTranscript(meetingId, null, user.accessToken);
+    res.json({ success: true, transcript });
+  } catch (error) {
+    console.error('Error downloading transcript:', error);
+    res.status(500).json({ success: false, message: 'Failed to download transcript' });
+  }
+});
+
+router.post('/recording/:meetingId/download', protect, async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const user = await User.findById(req.user.id);
+    
+    if (!user || !user.accessToken) {
+      return res.status(401).json({ success: false, message: 'No access token available' });
+    }
+    
+    const recordings = await participantBot.downloadRecording(meetingId, user.accessToken);
+    res.json({ success: true, recordings });
+  } catch (error) {
+    console.error('Error downloading recordings:', error);
+    res.status(500).json({ success: false, message: 'Failed to download recordings' });
+  }
+});
+
+router.get('/recordings/list', protect, async (req, res) => {
+  try {
+    const recordingsDir = path.join(__dirname, '../recordings');
+    const files = fs.readdirSync(recordingsDir);
+    
+    const recordings = files.map(file => ({
+      name: file,
+      path: path.join(recordingsDir, file),
+      size: fs.statSync(path.join(recordingsDir, file)).size,
+      created: fs.statSync(path.join(recordingsDir, file)).birthtime
+    }));
+    
+    res.json({ success: true, recordings });
+  } catch (error) {
+    console.error('Error listing recordings:', error);
+    res.status(500).json({ success: false, message: 'Failed to list recordings' });
+  }
+});
+
+// Test JWT generation
+router.get('/test-jwt/:meetingId', protect, async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const botName = 'AI Assistant';
+    const botEmail = 'ai-assistant@zoom-bot.com';
+    
+    // Test JWT generation
+    const jwt = participantBot.generateMeetingJWT(meetingId, botName, botEmail);
+    
+    res.json({ 
+      success: true, 
+      jwt: jwt,
+      meetingId: meetingId,
+      botName: botName,
+      botEmail: botEmail,
+      clientId: process.env.ZOOM_BOT_CLIENT_ID ? 'Set' : 'Missing',
+      clientSecret: process.env.ZOOM_BOT_CLIENT_SECRET ? 'Set' : 'Missing'
+    });
+  } catch (error) {
+    console.error('Error generating test JWT:', error);
+    res.status(500).json({ success: false, message: 'Failed to generate JWT', error: error.message });
   }
 });
 

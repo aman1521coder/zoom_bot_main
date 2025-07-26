@@ -111,4 +111,51 @@ router.get("/zoom/callback", async (req, res) => {
   }
 });
 
-export default router; 
+/**
+ * @route GET /api/auth/verify
+ * @description Verify JWT token and return user data
+ */
+router.get("/verify", async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'No token provided' 
+      });
+    }
+
+    // Verify JWT token
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Get user from database
+    const user = await User.findById(decoded.userId).select('-accessToken -refreshToken');
+    
+    if (!user) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName
+      }
+    });
+
+  } catch (error) {
+    console.error('Token verification error:', error);
+    res.status(401).json({ 
+      success: false, 
+      message: 'Invalid token' 
+    });
+  }
+});
+
+export default router;

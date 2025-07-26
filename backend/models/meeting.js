@@ -16,9 +16,20 @@ const meetingSchema = new mongoose.Schema({
   },
   downloadUrl: String,
   transcript: { type: String, default: '' },
+  transcription: { type: String, default: '' }, // Full transcription text
+  transcriptUrl: String, // URL to transcript file
+  recordingUrl: String, // URL to recording file
   summary: { type: String, default: '' },
   actionItems: [String],
   processingError: { type: String, default: null },
+  recordingMethod: { 
+    type: String, 
+    enum: ['cloud', 'local', 'browser', 'api', 'vps_bot', 'cloud_fallback', 'tracking_only', 'none'],
+    default: 'none'
+  },
+  recordingStartTime: Date,
+  recordingEndTime: Date,
+  wordCount: Number,
   
   // Participant bot specific fields
   meetingDetails: { type: mongoose.Schema.Types.Mixed, default: null },
