@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import transcriptionService from '../services/transcriptionService.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -25,7 +25,7 @@ const upload = multer({
 });
 
 // Upload and transcribe audio
-router.post('/upload', authenticateToken, upload.single('audio'), async (req, res) => {
+router.post('/upload', protect, upload.single('audio'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No audio file provided' });
@@ -60,7 +60,7 @@ router.post('/upload', authenticateToken, upload.single('audio'), async (req, re
 });
 
 // Generate summary from transcription
-router.post('/summarize', authenticateToken, async (req, res) => {
+router.post('/summarize', protect, async (req, res) => {
   try {
     const { transcription } = req.body;
 

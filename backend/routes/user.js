@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticateToken } from '../middleware/auth.js';
+import { protect } from '../middleware/auth.js';
 import User from '../models/user.js';
 
 const router = express.Router();
@@ -7,7 +7,7 @@ const router = express.Router();
 /**
  * Get user settings
  */
-router.get('/settings', authenticateToken, async (req, res) => {
+router.get('/settings', protect, async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('recordingSettings');
     
@@ -38,7 +38,7 @@ router.get('/settings', authenticateToken, async (req, res) => {
 /**
  * Update user settings
  */
-router.put('/settings', authenticateToken, async (req, res) => {
+router.put('/settings', protect, async (req, res) => {
   try {
     const { recordingSettings } = req.body;
     
@@ -67,7 +67,7 @@ router.put('/settings', authenticateToken, async (req, res) => {
 /**
  * Get user profile
  */
-router.get('/profile', authenticateToken, async (req, res) => {
+router.get('/profile', protect, async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('-accessToken -refreshToken');
     

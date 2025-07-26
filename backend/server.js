@@ -9,7 +9,7 @@ import cors from 'cors';
 import authRoutes from './routes/auth.js';
 import webhookRoutes from './routes/webhook.js';
 import meetingRoutes from './routes/meeting.js';
-import botRoutes from './routes/bot.js';
+// import botRoutes from './routes/bot.js'; // Deprecated - using recording routes instead
 import recorderRoutes from './routes/recorder.js';
 import alternativeRecorderRoutes from './routes/alternativeRecorder.js';
 import transcriptionRoutes from './routes/transcription.js';
@@ -44,7 +44,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/auth', authRoutes);
 app.use('/api/webhook/zoom', webhookRoutes);
 app.use('/api/meetings', meetingRoutes);
-app.use('/api/bot', botRoutes);
+// app.use('/api/bot', botRoutes); // Deprecated - using recording routes instead
 app.use('/api/recorder', recorderRoutes);
 app.use('/api/alternative-recorder', alternativeRecorderRoutes);
 app.use('/api/transcription', transcriptionRoutes);
