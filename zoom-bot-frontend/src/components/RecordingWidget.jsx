@@ -73,7 +73,7 @@ export default function RecordingWidget({ meetingId, onRecordingComplete }) {
       formData.append('audio', audioBlob, 'recording.webm');
       formData.append('meetingId', meetingId || `manual-${Date.now()}`);
 
-      const response = await fetch('https://blackkbingo.com/api/transcription/upload', {
+      const response = await fetch('https://aizoomai.com/api/transcription/upload', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`

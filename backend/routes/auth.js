@@ -10,7 +10,7 @@ const router = express.Router();
 const CLIENT_ID = process.env.ZOOM_BOT_CLIENT_ID;
 const CLIENT_SECRET = process.env.ZOOM_BOT_CLIENT_SECRET;
 const JWT_SECRET = process.env.JWT_SECRET;
-const REDIRECT_URI = process.env.ZOOM_REDIRECT_URI || `https://blackkbingo.com/api/auth/zoom/callback`;
+const REDIRECT_URI = process.env.ZOOM_REDIRECT_URI || `https://aizoomai.com/api/auth/zoom/callback`;
 
 // Check for required environment variables
 if (!CLIENT_ID || !CLIENT_SECRET || !JWT_SECRET) {

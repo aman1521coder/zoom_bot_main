@@ -1,7 +1,7 @@
 // API Configuration
 export const apiConfig = {
   // Production API URL
-  baseURL: 'https://blackkbingo.com',
+  baseURL: 'https://aizoomai.com',
   
   // API endpoints
   endpoints: {

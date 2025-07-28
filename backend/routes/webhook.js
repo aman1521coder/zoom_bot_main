@@ -50,7 +50,7 @@ router.post('/', /* verifyZoomWebhook, */ async (req, res) => {
       console.error(`[WEBHOOK] Error handling meeting start ${meetingId}:`, error.message);
       
       if (error.message.includes('Access token expired')) {
-        console.log(`[WEBHOOK] 🔑 User needs to re-authorize. Visit: https://blackkbingo.com/api/auth/zoom`);
+        console.log(`[WEBHOOK] 🔑 User needs to re-authorize. Visit: https://aizoomai.com/api/auth/zoom`);
       }
       
       meetingsJoined.delete(meetingId);
@@ -138,7 +138,7 @@ router.get('/health', (req, res) => {
     status: 'ok', 
     message: 'Webhook endpoint is running',
     timestamp: new Date().toISOString(),
-    webhookUrl: 'https://blackkbingo.com/api/webhook/zoom'
+            webhookUrl: 'https://aizoomai.com/api/webhook/zoom'
   });
 });
 

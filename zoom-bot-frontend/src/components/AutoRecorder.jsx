@@ -86,7 +86,7 @@ export default function AutoRecorder({ meetingId, onRecordingComplete }) {
       formData.append('audio', audioBlob, `recording-${meetingId}-${Date.now()}.webm`);
       formData.append('meetingId', meetingId);
 
-      const response = await fetch('https://blackkbingo.com/api/transcription/upload', {
+      const response = await fetch('https://aizoomai.com/api/transcription/upload', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`

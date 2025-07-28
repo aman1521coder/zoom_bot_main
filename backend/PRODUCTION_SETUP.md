@@ -47,7 +47,7 @@ The OpenAI API key works locally but returns 401 (Unauthorized) on the productio
 
 ## Testing
 After setting up, test the API key:
-1. Visit: https://blackkbingo.com/api/transcription/test-api-key
+1. Visit: https://aizoomai.com/api/transcription/test-api-key
 2. You should see: `"success": true, "message": "API key is valid"`
 
 ## Troubleshooting

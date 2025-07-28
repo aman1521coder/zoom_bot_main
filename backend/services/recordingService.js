@@ -142,7 +142,7 @@ class RecordingService {
       instructions: {
         method: 'MediaRecorder',
         mimeType: 'audio/webm',
-        uploadEndpoint: 'https://blackkbingo.com/api/transcription/upload'
+        uploadEndpoint: 'https://aizoomai.com/api/transcription/upload'
       }
     };
   }
@@ -221,7 +221,7 @@ class RecordingService {
       instructions: {
         method: 'AutoMediaRecorder',
         autoStart: true,
-        uploadEndpoint: 'https://blackkbingo.com/api/transcription/upload'
+        uploadEndpoint: 'https://aizoomai.com/api/transcription/upload'
       }
     };
   }
