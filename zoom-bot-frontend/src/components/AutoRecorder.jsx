@@ -13,10 +13,12 @@ export default function AutoRecorder({ meetingId, onRecordingComplete }) {
     // Automatically start recording when component mounts
     startRecording();
     
-    // Cleanup on unmount
+    // Cleanup on unmount (when meeting ends)
     return () => {
+      console.log('[AUTO-RECORDER] Component unmounting - meeting ended');
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
+        console.log('[AUTO-RECORDER] Stopping and uploading recording...');
+        mediaRecorderRef.current.stop(); // This triggers uploadRecording via onstop
       }
     };
   }, [meetingId]);
@@ -98,6 +100,10 @@ export default function AutoRecorder({ meetingId, onRecordingComplete }) {
 
       const result = await response.json();
       setStatus('Recording uploaded successfully!');
+      console.log('[AUTO-RECORDER] Upload complete:', result);
+      
+      // Show success message
+      setStatus('✅ Recording saved and transcribed!');
       
       if (onRecordingComplete) {
         onRecordingComplete(result);

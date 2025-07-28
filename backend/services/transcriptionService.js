@@ -4,13 +4,19 @@ import FormData from 'form-data';
 
 class TranscriptionService {
   constructor() {
-    // DIRECT API KEY - Always use this one
-    this.apiKey = 'process.env.OPENAI_API_KEY';
+    // Use environment variable - required for security
+    this.apiKey = process.env.OPENAI_API_KEY;
     
     // Debug logging
-    console.log('[TRANSCRIPTION] Service initialized with hardcoded key');
+    console.log('[TRANSCRIPTION] Service initialized');
+    console.log('[TRANSCRIPTION] Using API key from:', process.env.OPENAI_API_KEY ? 'environment' : 'hardcoded');
     console.log('[TRANSCRIPTION] API key length:', this.apiKey.length);
     console.log('[TRANSCRIPTION] API key prefix:', this.apiKey.substring(0, 20) + '...');
+    
+    // Validate key format
+    if (!this.apiKey.startsWith('sk-')) {
+      console.error('[TRANSCRIPTION] WARNING: API key does not start with sk-');
+    }
   }
 
   /**
@@ -32,10 +38,18 @@ class TranscriptionService {
       formData.append('language', 'en');
 
       console.log('[TRANSCRIPTION] Sending request to OpenAI API...');
-      console.log('[TRANSCRIPTION] Using API key:', this.apiKey.substring(0, 20) + '...');
+      console.log('[TRANSCRIPTION] Using API key from instance:', this.apiKey.substring(0, 20) + '...');
       
-      // Use the hardcoded key directly
-      const apiKey = 'process.env.OPENAI_API_KEY';
+      // Use the instance API key (which can be from env or hardcoded)
+      const apiKey = this.apiKey;
+      
+      // =================================================================
+      // ▼▼▼ CRITICAL DEBUGGING LINES ▼▼▼
+      // =================================================================
+      console.log(`[DEBUG] Key being sent to OpenAI: "Bearer ${apiKey}"`);
+      console.log(`[DEBUG] Key length: ${apiKey.length} characters`);
+      console.log(`[DEBUG] Key starts with 'sk-': ${apiKey.startsWith('sk-')}`);
+      // =================================================================
       
       const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST',
@@ -133,6 +147,8 @@ class TranscriptionService {
     }
 
     try {
+      console.log('[TRANSCRIPTION] Generating summary with API key:', this.apiKey.substring(0, 20) + '...');
+      
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {

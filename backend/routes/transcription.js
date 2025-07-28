@@ -117,8 +117,8 @@ router.post('/summarize', protect, async (req, res) => {
 // Test API key configuration
 router.get('/test-api-key', protect, async (req, res) => {
   try {
-    // Use hardcoded key directly
-    const apiKey = 'process.env.OPENAI_API_KEY';
+    // Use environment variable for security
+    const apiKey = process.env.OPENAI_API_KEY;
 
     // Test the API key with a simple request
     const response = await fetch('https://api.openai.com/v1/models', {

@@ -27,6 +27,7 @@ import alternativeRecorderRoutes from './routes/alternativeRecorder.js';
 import transcriptionRoutes from './routes/transcription.js';
 import recordingRoutes from './routes/recording.js';
 import userRoutes from './routes/user.js';
+import zoomSdkRoutes from './routes/zoom-sdk.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -62,6 +63,7 @@ app.use('/api/alternative-recorder', alternativeRecorderRoutes);
 app.use('/api/transcription', transcriptionRoutes);
 app.use('/api/recording', recordingRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/zoom', zoomSdkRoutes);
 
 
 // Health check endpoint

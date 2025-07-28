@@ -2,7 +2,7 @@ import express from 'express';
 import { verifyZoomWebhook } from '../middleware/verifyzoom.js';
 import User from '../models/user.js';
 import Meeting from '../models/meeting.js';
-import vpsWorkerService from '../services/vpsWorkerService.js';
+import autoMeetingJoiner from '../services/autoMeetingJoiner.js';
 
 const router = express.Router();
 const meetingsJoined = new Set();
@@ -22,80 +22,32 @@ router.post('/', /* verifyZoomWebhook, */ async (req, res) => {
     const { id: meetingId, topic, host_id: hostId, password } = payload.object;
     
     if (meetingsJoined.has(meetingId)) {
-      console.log(`[WEBHOOK] Already joined meeting ${meetingId}`);
+      console.log(`[WEBHOOK] Already processing meeting ${meetingId}`);
       return;
     }
     
     meetingsJoined.add(meetingId);
 
     try {
-      const user = await User.findOne({ zoomId: hostId });
-      if (user) {
-        // Get user's recording settings
-        const userSettings = user.recordingSettings || {
-          behavior: 'recording-only',
-          recordingMethod: 'auto_browser',
-          autoRecord: true
-        };
-        
-        console.log(`[WEBHOOK] 📋 User settings: ${userSettings.behavior}, autoRecord: ${userSettings.autoRecord}`);
-        
-                  // For automatic recording, we need to prepare the recording
-          if (userSettings.autoRecord) {
-            console.log(`[WEBHOOK] 🎤 Auto-recording enabled for meeting: ${topic} (${meetingId})`);
-            
-            try {
-              // Create meeting record first
-              await Meeting.findOneAndUpdate(
-                { meetingId },
-                { 
-                  $setOnInsert: {
-                    userId: user._id,
-                    meetingId,
-                    topic: topic || 'Untitled Meeting',
-                    hostId,
-                    startTime: new Date(),
-                    status: 'active'
-                  }
-                },
-                { upsert: true }
-              );
-              
-              // Start recording (browser-based auto recording)
-              const recordingService = await import('../services/recordingService.js');
-              await recordingService.default.startRecording(
-                meetingId,
-                user._id,
-                'auto_browser'
-              );
-              
-              console.log(`[WEBHOOK] ✅ Auto-recording prepared for meeting ${meetingId}`);
-            } catch (error) {
-              console.error(`[WEBHOOK] ❌ Failed to setup auto-recording:`, error);
-            }
-        } else if (userSettings.behavior === 'recording-only' || userSettings.behavior === 'both') {
-          // Manual recording - just prepare but don't launch bot
-          console.log(`[WEBHOOK] 📱 Manual recording - user must use frontend`);
-          
-          const recordingService = await import('../services/recordingService.js');
-          const result = await recordingService.default.startRecording(
-            meetingId,
-            user._id,
-            userSettings.recordingMethod || 'browser'
-          );
-          
-          if (result.success) {
-            console.log(`[WEBHOOK] ✅ Recording prepared using ${result.method}`);
-          } else {
-            console.log(`[WEBHOOK] ⚠️ Recording failed: ${result.error}`);
-          }
-        }
+      console.log(`[WEBHOOK] 🚀 Meeting started: ${topic} (${meetingId})`);
+      
+      // Automatically join meeting and start cloud recording
+      const result = await autoMeetingJoiner.handleMeetingStarted(
+        meetingId, 
+        hostId, 
+        topic, 
+        password
+      );
+
+      if (result.success) {
+        console.log(`[WEBHOOK] ✅ Auto-join and cloud recording started for meeting ${meetingId}`);
       } else {
-        console.log(`[WEBHOOK] No user found for Zoom ID: ${hostId}`);
+        console.log(`[WEBHOOK] ⚠️ Auto-join failed for meeting ${meetingId}: ${result.error}`);
         meetingsJoined.delete(meetingId);
       }
+
     } catch (error) {
-      console.error(`[WEBHOOK] Error launching bot for meeting ${meetingId}:`, error.message);
+      console.error(`[WEBHOOK] Error handling meeting start ${meetingId}:`, error.message);
       
       if (error.message.includes('Access token expired')) {
         console.log(`[WEBHOOK] 🔑 User needs to re-authorize. Visit: https://blackkbingo.com/api/auth/zoom`);
@@ -110,21 +62,15 @@ router.post('/', /* verifyZoomWebhook, */ async (req, res) => {
     console.log(`[WEBHOOK] Meeting ended: ${meetingId}`);
     
     try {
-      const user = await User.findOne({ zoomId: hostId });
-      if (user) {
-        console.log(`[WEBHOOK] 📥 Handling meeting end for ${meetingId}`);
-        
-        // Stop recording
-        const recordingService = await import('../services/recordingService.js');
-        await recordingService.default.stopRecording(meetingId);
-        console.log(`[WEBHOOK] ✅ Recording stopped for ${meetingId}`);
-        
-        // Also handle VPS bot cleanup if it was running
-        if (process.env.ENABLE_VPS_BOT === 'true') {
-          await vpsWorkerService.handleMeetingEnd(meetingId, user._id);
-          console.log(`[WEBHOOK] ✅ VPS bot cleanup completed for ${meetingId}`);
-        }
+      // Handle meeting end with auto joiner
+      const result = await autoMeetingJoiner.handleMeetingEnded(meetingId, hostId);
+      
+      if (result.success) {
+        console.log(`[WEBHOOK] ✅ Meeting end handled successfully for ${meetingId}`);
+      } else {
+        console.log(`[WEBHOOK] ⚠️ Meeting end handling failed for ${meetingId}: ${result.error}`);
       }
+      
       meetingsJoined.delete(meetingId);
     } catch (error) {
       console.error(`[WEBHOOK] Error handling meeting end for ${meetingId}:`, error);

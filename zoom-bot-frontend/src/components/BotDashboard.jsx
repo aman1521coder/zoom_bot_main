@@ -20,6 +20,9 @@ import RecordingWidget from './RecordingWidget.jsx';
 import AutoRecorder from './AutoRecorder.jsx';
 import RecordingSettings from './RecordingSettings.jsx';
 import MeetingsList from './MeetingsList.jsx';
+import RecordingNotification from './RecordingNotification.jsx';
+import ZoomBotJoiner from './ZoomBotJoiner.jsx';
+import AutoBotStatus from './AutoBotStatus.jsx';
 
 export default function BotDashboard({ user, onLogout }) {
   const [botStatus, setBotStatus] = useState('idle'); // idle, active, error
@@ -28,6 +31,7 @@ export default function BotDashboard({ user, onLogout }) {
   const [selectedMeeting, setSelectedMeeting] = useState(null);
   const [userSettings, setUserSettings] = useState(null);
   const [activeMeetings, setActiveMeetings] = useState([]);
+  const [notification, setNotification] = useState(null);
   const [botSettings, setBotSettings] = useState({
     autoJoin: true,
     audioEnabled: true,
@@ -64,6 +68,45 @@ export default function BotDashboard({ user, onLogout }) {
       case 'active': return 'text-green-600 bg-green-100';
       case 'error': return 'text-red-600 bg-red-100';
       default: return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  const handleMeetingClosed = async (meeting) => {
+    console.log('[BotDashboard] Handling meeting closure:', meeting);
+    
+    try {
+      // Check if there's a recording for this meeting
+      if (meeting.recordingUrl || meeting.hasRecording) {
+        // Fetch the latest meeting data to get transcription status
+        const response = await api.request(`/api/meetings/${meeting._id}`);
+        if (response?.data) {
+          const updatedMeeting = response.data;
+          
+          if (updatedMeeting.transcription) {
+            setNotification({
+              type: 'success',
+              message: `Meeting "${meeting.topic}" recording and transcription completed!`,
+              playSound: true,
+              duration: 8000
+            });
+          } else {
+            setNotification({
+              type: 'info',
+              message: `Meeting "${meeting.topic}" recording saved. Transcription in progress...`,
+              playSound: false,
+              duration: 6000
+            });
+          }
+        }
+      }
+      
+      // If auto-recording is enabled, log completion
+      if (userSettings?.autoRecord) {
+        console.log('[BotDashboard] Auto-recorded meeting completed:', meeting.meetingId);
+      }
+      
+    } catch (error) {
+      console.error('[BotDashboard] Error handling meeting closure:', error);
     }
   };
 
@@ -137,6 +180,13 @@ export default function BotDashboard({ user, onLogout }) {
                   meetingId={meeting.meetingId}
                   onRecordingComplete={(result) => {
                     console.log('Auto recording complete:', result);
+                    
+                    // Show success notification
+                    setNotification({
+                      message: 'Recording uploaded and transcribed successfully!',
+                      type: 'success'
+                    });
+                    
                     // Refresh meetings list to show transcription
                     setTimeout(() => {
                       // This will trigger a refresh through MeetingsList
@@ -262,6 +312,9 @@ export default function BotDashboard({ user, onLogout }) {
           </div>
         </div>
 
+        {/* Auto Bot Status */}
+        <AutoBotStatus />
+
         {/* Meetings List with Tabs */}
         <MeetingsList 
           onMeetingSelect={(meeting) => {
@@ -272,8 +325,63 @@ export default function BotDashboard({ user, onLogout }) {
             setActiveMeetings(meetings);
             console.log('Active meetings:', meetings);
           }}
+          onMeetingClosed={(meeting) => {
+            console.log('[BotDashboard] Meeting closed:', meeting);
+            
+            // Show notification with sound
+            setNotification({
+              type: 'info',
+              message: `Meeting "${meeting.topic}" has ended${meeting.recordingUrl ? ' - Recording saved' : ''}`,
+              playSound: true,
+              duration: 7000
+            });
+            
+            // If this was the selected meeting, clear selection
+            if (selectedMeeting?.meetingId === meeting.meetingId) {
+              setSelectedMeeting(null);
+            }
+            
+            // Trigger any cleanup actions
+            handleMeetingClosed(meeting);
+          }}
         />
+
+        {/* Bot Joiner for selected meeting */}
+        {selectedMeeting && (
+          <div className="mt-6">
+            <ZoomBotJoiner
+              meeting={selectedMeeting}
+              onJoinSuccess={(result) => {
+                setNotification({
+                  type: 'success',
+                  message: `Bot joined "${selectedMeeting.topic}" successfully!`,
+                  playSound: true,
+                  duration: 5000
+                });
+              }}
+              onJoinError={(error) => {
+                setNotification({
+                  type: 'error',
+                  message: `Failed to join meeting: ${error.message}`,
+                  playSound: true,
+                  duration: 8000
+                });
+              }}
+            />
+          </div>
+        )}
       </div>
+      
+      {/* Notification */}
+      {notification && (
+        <RecordingNotification
+          message={notification.message}
+          type={notification.type}
+          duration={notification.duration || 5000}
+          playSound={notification.playSound || false}
+          onClose={() => setNotification(null)}
+        />
+      )}
     </div>
   );
 } 

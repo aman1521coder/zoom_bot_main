@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Calendar, 
   Clock, 
@@ -16,7 +16,7 @@ import {
 import api from '../services/api.js';
 import TranscriptionModal from './TranscriptionModal.jsx';
 
-export default function MeetingsList({ onMeetingSelect, onActiveMeetingsChange }) {
+export default function MeetingsList({ onMeetingSelect, onActiveMeetingsChange, onMeetingClosed }) {
   const [meetings, setMeetings] = useState({
     active: [],
     scheduled: [],
@@ -26,11 +26,12 @@ export default function MeetingsList({ onMeetingSelect, onActiveMeetingsChange }
   const [activeTab, setActiveTab] = useState('active');
   const [selectedMeeting, setSelectedMeeting] = useState(null);
   const [showTranscription, setShowTranscription] = useState(false);
+  const previousActiveMeetingsRef = useRef([]);
 
   useEffect(() => {
     fetchMeetings();
-    // Refresh every 30 seconds for active meetings
-    const interval = setInterval(fetchMeetings, 30000);
+    // Refresh every 5 seconds for quicker detection of closed meetings
+    const interval = setInterval(fetchMeetings, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -50,6 +51,26 @@ export default function MeetingsList({ onMeetingSelect, onActiveMeetingsChange }
         scheduled: scheduledMeetings?.data || [],
         past: pastMeetings?.data || []
       };
+      
+      // Detect closed meetings
+      const previousMeetingIds = previousActiveMeetingsRef.current.map(m => m.meetingId);
+      const currentMeetingIds = meetingsData.active.map(m => m.meetingId);
+      
+      // Find meetings that were active but are no longer active
+      const closedMeetings = previousActiveMeetingsRef.current.filter(
+        meeting => !currentMeetingIds.includes(meeting.meetingId)
+      );
+      
+      // Notify about closed meetings
+      if (closedMeetings.length > 0 && onMeetingClosed) {
+        closedMeetings.forEach(meeting => {
+          console.log(`[MeetingsList] Meeting closed: ${meeting.topic} (${meeting.meetingId})`);
+          onMeetingClosed(meeting);
+        });
+      }
+      
+      // Update previous meetings reference
+      previousActiveMeetingsRef.current = meetingsData.active;
       
       setMeetings(meetingsData);
       
