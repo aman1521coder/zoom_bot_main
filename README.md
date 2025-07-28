@@ -1,4 +1,4 @@
-# Hi there, I'm [Your Name] 👋
+# Hi there, I'm Amanuel 👋
 
 <div align="center">
   <img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&pause=1000&color=2E9EF7&center=true&vCenter=true&width=435&lines=Full+Stack+Developer;Open+Source+Enthusiast;Always+Learning+New+Things;Building+Amazing+Projects" alt="Typing SVG" />
@@ -9,7 +9,7 @@
   <a href="https://github.com/yourusername?tab=followers">
     <img src="https://img.shields.io/github/followers/yourusername?label=Followers&style=social" alt="GitHub followers" />
   </a>
-  <a href="https://github.com/yourusername">
+  <a href="https://github.com/aman1521coder">
     <img src="https://img.shields.io/github/stars/yourusername?label=GitHub%20Stars&style=social" alt="GitHub stars" />
   </a>
 </div>
